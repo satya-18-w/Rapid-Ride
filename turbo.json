@@ -1,0 +1,21 @@
+{
+  "ui": "tui",
+  "globalDependencies": ["**/.env.*local"],
+  "tasks": {
+    "dev": {
+      "cache": false,
+      "interactive": true
+    },
+    "build": {
+      "outputs": ["dist/**", ".next/**", "build/**"],
+      "cache": true
+    },
+    "export": {
+      "cache": true,
+      "outputs": ["../../apps/backend/templates/emails/**"]
+    },
+    "lint": {
+      "cache": true
+    }
+  }
+}
