@@ -45,12 +45,14 @@ export const setDriverAvailability = async (available) => {
 };
 
 // Ride APIs
-export const createRide = async (pickupLocation, pickupAddress, dropoffLocation, dropoffAddress) => {
+export const createRide = async (pickupLocation, pickupAddress, dropoffLocation, dropoffAddress, vehicleType = 'sedan', paymentMethod = 'cash') => {
     return await api.post('/rides', {
         pickup_location: pickupLocation,
         pickup_address: pickupAddress,
         dropoff_location: dropoffLocation,
-        dropoff_address: dropoffAddress
+        dropoff_address: dropoffAddress,
+        vehicle_type: vehicleType,
+        payment_method: paymentMethod
     });
 };
 
@@ -62,8 +64,8 @@ export const acceptRide = async (rideId) => {
     return await api.post(`/rides/${rideId}/accept`);
 };
 
-export const startRide = async (rideId) => {
-    return await api.post(`/rides/${rideId}/start`);
+export const startRide = async (rideId, otp) => {
+    return await api.post(`/rides/${rideId}/start`, { otp });
 };
 
 export const completeRide = async (rideId) => {

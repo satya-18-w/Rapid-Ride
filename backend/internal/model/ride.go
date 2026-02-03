@@ -23,6 +23,26 @@ const (
 	PaymentStatusFailed    PaymentStatus = "failed"
 )
 
+// VehicleType represents the type of vehicle for a ride
+type VehicleType string
+
+const (
+	VehicleTypeBike  VehicleType = "bike"
+	VehicleTypeAuto  VehicleType = "auto"
+	VehicleTypeSedan VehicleType = "sedan"
+	VehicleTypeSUV   VehicleType = "suv"
+)
+
+// PaymentMethod represents the payment method for a ride
+type PaymentMethod string
+
+const (
+	PaymentMethodCash   PaymentMethod = "cash"
+	PaymentMethodUPI    PaymentMethod = "upi"
+	PaymentMethodCard   PaymentMethod = "card"
+	PaymentMethodWallet PaymentMethod = "wallet"
+)
+
 // Ride represents a ride in the system
 type Ride struct {
 	ID              string        `json:"id" db:"id"`
@@ -33,6 +53,9 @@ type Ride struct {
 	DropoffLocation Location      `json:"dropoff_location"`
 	DropoffAddress  string        `json:"dropoff_address" db:"dropoff_address"`
 	Status          RideStatus    `json:"status" db:"status"`
+	VehicleType     VehicleType   `json:"vehicle_type" db:"vehicle_type"`
+	PaymentMethod   PaymentMethod `json:"payment_method" db:"payment_method"`
+	OTP             string        `json:"otp,omitempty" db:"otp"`
 	Fare            *float64      `json:"fare,omitempty" db:"fare"`
 	DistanceKm      *float64      `json:"distance_km,omitempty" db:"distance_km"`
 	DurationMinutes *int          `json:"duration_minutes,omitempty" db:"duration_minutes"`
@@ -50,10 +73,12 @@ type Ride struct {
 
 // RideRequest represents a request to create a new ride
 type RideRequest struct {
-	PickupLocation  Location `json:"pickup_location" validate:"required"`
-	PickupAddress   string   `json:"pickup_address" validate:"required,min=5,max=500"`
-	DropoffLocation Location `json:"dropoff_location" validate:"required"`
-	DropoffAddress  string   `json:"dropoff_address" validate:"required,min=5,max=500"`
+	PickupLocation  Location      `json:"pickup_location" validate:"required"`
+	PickupAddress   string        `json:"pickup_address" validate:"required,min=5,max=500"`
+	DropoffLocation Location      `json:"dropoff_location" validate:"required"`
+	DropoffAddress  string        `json:"dropoff_address" validate:"required,min=5,max=500"`
+	VehicleType     VehicleType   `json:"vehicle_type" validate:"required,oneof=bike auto sedan suv"`
+	PaymentMethod   PaymentMethod `json:"payment_method" validate:"required,oneof=cash upi card wallet"`
 }
 
 // RideResponse represents a ride with additional driver information
@@ -64,6 +89,9 @@ type RideResponse struct {
 	DropoffAddress  string        `json:"dropoff_address"`
 	PickupLocation  Location      `json:"pickup_location"`
 	DropoffLocation Location      `json:"dropoff_location"`
+	VehicleType     VehicleType   `json:"vehicle_type"`
+	PaymentMethod   PaymentMethod `json:"payment_method"`
+	OTP             string        `json:"otp,omitempty"`
 	Fare            *float64      `json:"fare,omitempty"`
 	DistanceKm      *float64      `json:"distance_km,omitempty"`
 	DurationMinutes *int          `json:"duration_minutes,omitempty"`
@@ -75,6 +103,11 @@ type RideResponse struct {
 	PaymentStatus   PaymentStatus `json:"payment_status"`
 	Rating          *int          `json:"rating,omitempty"`
 	Feedback        *string       `json:"feedback,omitempty"`
+}
+
+// RideStartRequest represents a request to start a ride with OTP verification
+type RideStartRequest struct {
+	OTP string `json:"otp" validate:"required,len=4"`
 }
 
 // DriverInfo represents driver information for a ride

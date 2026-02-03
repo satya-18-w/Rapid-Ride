@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/errs"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/model"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
 )
@@ -16,64 +18,103 @@ func NewRideRepository(s *server.Server) *RideRepository {
 	return &RideRepository{server: s}
 }
 
-// Create creates a new ride request
+// // Create creates a new ride request
+// func (r *RideRepository) Create(ctx context.Context, ride *model.Ride) error {
+// 	query := `
+// 		INSERT INTO rides (
+// 			id, user_id, pickup_location, pickup_address,
+// 			dropoff_location, dropoff_address, status, payment_status
+// 		) VALUES (
+// 			gen_random_uuid(), $1,
+// 			ST_SetSRID(ST_MakePoint($2, $3), 4326),
+// 			$4,
+// 			ST_SetSRID(ST_MakePoint($5, $6), 4326),
+// 			$7, $8, $9
+// 		)
+// 		RETURNING id, requested_at, created_at, updated_at
+// 	`
+
+// 	err := r.server.DB.Pool.QueryRow(
+// 		ctx, query,
+// 		ride.UserID,
+// 		ride.PickupLocation.Longitude, ride.PickupLocation.Latitude,
+// 		ride.PickupAddress,
+// 		ride.DropoffLocation.Longitude, ride.DropoffLocation.Latitude,
+// 		ride.DropoffAddress,
+// 		ride.Status,
+// 		ride.PaymentStatus,
+// 	).Scan(&ride.ID, &ride.RequestedAt, &ride.CreatedAt, &ride.UpdatedAt)
+
+// 	if err != nil {
+// 		r.server.Logger.Error().Err(err).Msg("Failed to create ride")
+// 		return fmt.Errorf("failed to create ride: %w", err)
+// 	}
+
+// 	return nil
+// }
+
+// New Logic
 func (r *RideRepository) Create(ctx context.Context, ride *model.Ride) error {
 	query := `
-		INSERT INTO rides (
-			id, user_id, pickup_location, pickup_address,
-			dropoff_location, dropoff_address, status, payment_status
-		) VALUES (
-			gen_random_uuid(), $1,
-			ST_SetSRID(ST_MakePoint($2, $3), 4326),
-			$4,
-			ST_SetSRID(ST_MakePoint($5, $6), 4326),
-			$7, $8, $9
-		)
-		RETURNING id, requested_at, created_at, updated_at
-	`
+	 INSERT INTO rides(
+	 id,user_id,pickup_location,pickup_address,
+	 dropoff_location,dropoff_address,status,fare,distance_km,
+	 duration_minute,payment_status
+	 ) VALUES(
+	  gen_random_uuid(), @user_id,
+	  ST_SetSRID(ST_MakePoint(@pickup_lng,@pickup_lat),4326),
+	  @pickup_address,
+	  ST_SetSRID(ST_MakePoint(@dropoff_lng,@dropoff_lat),4326),
+	  @dropoff_address,
+	  @status,
+	  @fare,
+	  @distance_km,
+	  @duration_minute,
+	  @payment_status
 
-	err := r.server.DB.Pool.QueryRow(
-		ctx, query,
-		ride.UserID,
-		ride.PickupLocation.Longitude, ride.PickupLocation.Latitude,
-		ride.PickupAddress,
-		ride.DropoffLocation.Longitude, ride.DropoffLocation.Latitude,
-		ride.DropoffAddress,
-		ride.Status,
-		ride.PaymentStatus,
-	).Scan(&ride.ID, &ride.RequestedAt, &ride.CreatedAt, &ride.UpdatedAt)
+	  ) RETURNING id,requested_at,created_at,updated_at
+	   `
 
-	if err != nil {
-		r.server.Logger.Error().Err(err).Msg("Failed to create ride")
-		return fmt.Errorf("failed to create ride: %w", err)
-	}
+	return r.server.DB.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"user_id":         ride.UserID,
+		"pickup_lng":      ride.PickupLocation.Longitude,
+		"pickup_lat":      ride.PickupLocation.Latitude,
+		"pickup_address":  ride.PickupAddress,
+		"dropoff_lng":     ride.DropoffLocation.Longitude,
+		"dropoff_lat":     ride.DropoffLocation.Latitude,
+		"dropoff_address": ride.DropoffAddress,
+		"status":          ride.Status,
+		"fare":            ride.Fare,
+		"distance_km":     ride.DistanceKm,
+		"duration_minute": ride.DurationMinutes,
+		"payment_status":  ride.PaymentStatus,
+	}).Scan(&ride.ID, &ride.RequestedAt, &ride.CreatedAt, &ride.UpdatedAt)
 
-	return nil
 }
 
 // GetByID retrieves a ride by ID
 func (r *RideRepository) GetByID(ctx context.Context, rideID string) (*model.Ride, error) {
+
 	query := `
-		SELECT 
-			id, user_id, driver_id,
-			ST_Y(pickup_location::geometry) as pickup_lat,
-			ST_X(pickup_location::geometry) as pickup_lng,
-			pickup_address,
-			ST_Y(dropoff_location::geometry) as dropoff_lat,
-			ST_X(dropoff_location::geometry) as dropoff_lng,
-			dropoff_address,
-			status, fare, distance_km, duration_minutes,
-			requested_at, accepted_at, started_at, completed_at,
-			payment_status, payment_id, rating, feedback,
-			created_at, updated_at
-		FROM rides
-		WHERE id = $1
-	`
+	SELECT id,user_id,driver_id,
+	ST_Y(pickup_location::geometry) as pickup_lat,
+	ST_X(pickup_location::geometry) as pickup_lng,
+	pickup_address,
+	ST_Y(dropoff_location::geometry) as dropoff_lat,
+	ST_X(dropoff_location::geometry) as dropoff_lng,
+	dropoff_address,
+	status,fare,distance_km,duration_minutes,
+	requested_at,accepted_at,started_at,completed_at,
+	payment_status,payment_id,rating,feedback,
+	created_at,updated_at
+	FROM rides
+	WHERE id = @ride_id`
 
 	var ride model.Ride
 	var pickupLat, pickupLng, dropoffLat, dropoffLng float64
-
-	err := r.server.DB.Pool.QueryRow(ctx, query, rideID).Scan(
+	err := r.server.DB.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"ride_id": rideID,
+	}).Scan(
 		&ride.ID, &ride.UserID, &ride.DriverID,
 		&pickupLat, &pickupLng, &ride.PickupAddress,
 		&dropoffLat, &dropoffLng, &ride.DropoffAddress,
@@ -84,7 +125,7 @@ func (r *RideRepository) GetByID(ctx context.Context, rideID string) (*model.Rid
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ride: %w", err)
+		return nil, errs.Wrap(err, "failed to get ride by id")
 	}
 
 	ride.PickupLocation = model.Location{Latitude: pickupLat, Longitude: pickupLng}

@@ -17,6 +17,16 @@ CREATE TABLE IF NOT EXISTS rides (
         'in_progress', 'completed', 'cancelled'
     )) DEFAULT 'requested',
     
+    vehicle_type VARCHAR(20) NOT NULL CHECK (vehicle_type IN (
+        'bike', 'auto', 'sedan', 'suv'
+    )) DEFAULT 'sedan',
+    
+    payment_method VARCHAR(20) NOT NULL CHECK (payment_method IN (
+        'cash', 'upi', 'card', 'wallet'
+    )) DEFAULT 'cash',
+    
+    otp VARCHAR(4),
+    
     fare DECIMAL(10,2),
     distance_km DECIMAL(10,2),
     duration_minutes INT,

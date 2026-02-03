@@ -31,7 +31,7 @@ func (h *RideHandler) CreateRide(c echo.Context) error {
 				return nil, echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized")
 			}
 
-			return h.rideService.CreateRideRequest(c.Request().Context(), userID, req)
+			return h.rideService.CreateRideRequest(c.Request().Context(), userID, *req)
 		},
 		http.StatusCreated,
 		&model.RideRequest{},
@@ -58,7 +58,7 @@ func (h *RideHandler) AcceptRide(c echo.Context) error {
 	return c.JSON(http.StatusOK, ride)
 }
 
-// StartRide starts a ride
+// StartRide starts a ride with OTP verification
 func (h *RideHandler) StartRide(c echo.Context) error {
 	driverID, ok := c.Get("user_id").(string)
 	if !ok {
@@ -70,7 +70,12 @@ func (h *RideHandler) StartRide(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Ride ID required")
 	}
 
-	ride, err := h.rideService.StartRide(c.Request().Context(), driverID, rideID)
+	var req model.RideStartRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	ride, err := h.rideService.StartRideWithOTP(c.Request().Context(), driverID, rideID, req.OTP)
 	if err != nil {
 		return err
 	}

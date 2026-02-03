@@ -21,14 +21,26 @@ const userIcon = new L.Icon({
     shadowSize: [41, 41]
 });
 
-const driverIcon = new L.Icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-});
+// Vehicle-specific icons
+const createVehicleIcon = (vehicleType) => {
+    const colors = {
+        bike: 'orange',
+        auto: 'yellow',
+        sedan: 'green',
+        suv: 'violet'
+    };
+
+    const color = colors[vehicleType] || 'green';
+
+    return new L.Icon({
+        iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+};
 
 // Component to recenter map
 function RecenterMap({ center }) {
@@ -49,7 +61,8 @@ const Map = ({
     pickupLocation = null,
     dropoffLocation = null,
     showRoute = false,
-    height = '100%'
+    height = '100%',
+    vehicleType = 'sedan' // New prop for vehicle type
 }) => {
     const routePositions = React.useMemo(() => {
         if (showRoute && pickupLocation && dropoffLocation) {
@@ -60,6 +73,29 @@ const Map = ({
         }
         return [];
     }, [showRoute, pickupLocation, dropoffLocation]);
+
+    // Create vehicle-specific icon
+    const driverIcon = React.useMemo(() => createVehicleIcon(vehicleType), [vehicleType]);
+
+    // Create pickup icon (lime green)
+    const pickupIcon = new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+    // Create dropoff icon (red)
+    const dropoffIcon = new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
 
     return (
         <div style={{ height, width: '100%' }}>
@@ -86,33 +122,49 @@ const Map = ({
                     </Marker>
                 )}
 
-                {/* Driver location marker */}
+                {/* Driver location marker with vehicle type */}
                 {driverLocation && (
                     <Marker
                         position={[driverLocation.latitude, driverLocation.longitude]}
                         icon={driverIcon}
                     >
-                        <Popup>Driver Location</Popup>
+                        <Popup>
+                            Driver Location
+                            <br />
+                            Vehicle: {vehicleType.toUpperCase()}
+                        </Popup>
                     </Marker>
                 )}
 
                 {/* Pickup location marker */}
                 {pickupLocation && (
-                    <Marker position={[pickupLocation.latitude, pickupLocation.longitude]}>
+                    <Marker
+                        position={[pickupLocation.latitude, pickupLocation.longitude]}
+                        icon={pickupIcon}
+                    >
                         <Popup>Pickup Location</Popup>
                     </Marker>
                 )}
 
                 {/* Dropoff location marker */}
                 {dropoffLocation && (
-                    <Marker position={[dropoffLocation.latitude, dropoffLocation.longitude]}>
+                    <Marker
+                        position={[dropoffLocation.latitude, dropoffLocation.longitude]}
+                        icon={dropoffIcon}
+                    >
                         <Popup>Dropoff Location</Popup>
                     </Marker>
                 )}
 
-                {/* Route polyline */}
+                {/* Route polyline with gradient effect */}
                 {showRoute && routePositions.length > 0 && (
-                    <Polyline positions={routePositions} color="blue" weight={3} opacity={0.7} />
+                    <Polyline
+                        positions={routePositions}
+                        color="#84cc16"
+                        weight={4}
+                        opacity={0.8}
+                        dashArray="10, 10"
+                    />
                 )}
             </MapContainer>
         </div>

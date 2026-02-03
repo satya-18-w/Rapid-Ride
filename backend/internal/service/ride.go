@@ -6,6 +6,8 @@ import (
 	"math"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/errs"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/model"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/repository"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
@@ -36,20 +38,54 @@ func NewRideService(s *server.Server, repo *repository.Repositories, locationSer
 	}
 }
 
-// CreateRideRequest creates a new ride request
-func (s *RideService) CreateRideRequest(ctx context.Context, userID string, req *model.RideRequest) (*model.RideResponse, error) {
-	// Check if user already has an active ride
-	activeRide, _ := s.repo.Ride.GetActiveRideForUser(ctx, userID)
-	if activeRide != nil {
-		return nil, fmt.Errorf("you already have an active ride")
-	}
+// // CreateRideRequest creates a new ride request
+// func (s *RideService) CreateRideRequest(ctx context.Context, userID string, req *model.RideRequest) (*model.RideResponse, error) {
+// 	// Check if user already has an active ride
+// 	activeRide, _ := s.repo.Ride.GetActiveRideForUser(ctx, userID)
+// 	if activeRide != nil {
+// 		return nil, fmt.Errorf("you already have an active ride")
+// 	}
 
-	// Calculate distance and fare
-	distance := calculateDistance(req.PickupLocation, req.DropoffLocation)
-	estimatedTime := int(math.Ceil((distance / averageSpeed) * 60)) // minutes
-	fare := calculateFare(distance, estimatedTime)
+// 	// Calculate distance and fare
+// 	distance := calculateDistance(req.PickupLocation, req.DropoffLocation)
+// 	estimatedTime := int(math.Ceil((distance / averageSpeed) * 60)) // minutes
+// 	fare := calculateFare(distance, estimatedTime)
 
-	// Create ride
+// 	// Create ride
+// 	ride := &model.Ride{
+// 		UserID:          userID,
+// 		PickupLocation:  req.PickupLocation,
+// 		PickupAddress:   req.PickupAddress,
+// 		DropoffLocation: req.DropoffLocation,
+// 		DropoffAddress:  req.DropoffAddress,
+// 		Status:          model.RideStatusRequested,
+// 		Fare:            &fare,
+// 		DistanceKm:      &distance,
+// 		DurationMinutes: &estimatedTime,
+// 		PaymentStatus:   model.PaymentStatusPending,
+// 	}
+
+// 	if err := s.repo.Ride.Create(ctx, ride); err != nil {
+// 		s.server.Logger.Error().Err(err).Msg("Failed to create ride")
+// 		return nil, fmt.Errorf("failed to create ride: %w", err)
+// 	}
+
+// 	s.server.Logger.Info().
+// 		Str("ride_id", ride.ID).
+// 		Str("user_id", userID).
+// 		Float64("fare", fare).
+// 		Msg("Ride request created")
+
+// 	// TODO: Notify nearby drivers via WebSocket
+
+// 	return s.buildRideResponse(ctx, ride)
+// }
+
+// New Logic
+func (r *RideService) CreateRideRequest(ctx context.Context, userID string, req model.RideRequest) (*model.RideResponse, error) {
+	dist := calculateDistance(req.PickupLocation, req.DropoffLocation)
+	estimatedTime := int(math.Ceil((dist / averageSpeed) * 60))
+	fare := calculateFare(dist, estimatedTime)
 	ride := &model.Ride{
 		UserID:          userID,
 		PickupLocation:  req.PickupLocation,
@@ -58,130 +94,265 @@ func (s *RideService) CreateRideRequest(ctx context.Context, userID string, req 
 		DropoffAddress:  req.DropoffAddress,
 		Status:          model.RideStatusRequested,
 		Fare:            &fare,
-		DistanceKm:      &distance,
+		DistanceKm:      &dist,
 		DurationMinutes: &estimatedTime,
 		PaymentStatus:   model.PaymentStatusPending,
 	}
 
-	if err := s.repo.Ride.Create(ctx, ride); err != nil {
-		s.server.Logger.Error().Err(err).Msg("Failed to create ride")
-		return nil, fmt.Errorf("failed to create ride: %w", err)
+	if err := r.repo.Ride.Create(ctx, ride); err != nil {
+		return nil, err
 	}
+	return r.buildRideResponse(ctx, ride)
 
-	s.server.Logger.Info().
-		Str("ride_id", ride.ID).
-		Str("user_id", userID).
-		Float64("fare", fare).
-		Msg("Ride request created")
-
-	// TODO: Notify nearby drivers via WebSocket
-
-	return s.buildRideResponse(ctx, ride)
 }
 
 // AcceptRide allows a driver to accept a ride request
-func (s *RideService) AcceptRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
-	// Check if driver has an active ride
-	activeRide, _ := s.repo.Ride.GetActiveRideForDriver(ctx, driverID)
-	if activeRide != nil {
-		return nil, fmt.Errorf("you already have an active ride")
-	}
+// func (s *RideService) AcceptRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
+// 	// Check if driver has an active ride
+// 	activeRide, _ := s.repo.Ride.GetActiveRideForDriver(ctx, driverID)
+// 	if activeRide != nil {
+// 		return nil, fmt.Errorf("you already have an active ride")
+// 	}
 
-	// Assign driver to ride
-	if err := s.repo.Ride.AssignDriver(ctx, rideID, driverID); err != nil {
-		s.server.Logger.Error().Err(err).Str("ride_id", rideID).Msg("Failed to assign driver")
-		return nil, fmt.Errorf("failed to accept ride: %w", err)
-	}
+// 	// Assign driver to ride
+// 	if err := s.repo.Ride.AssignDriver(ctx, rideID, driverID); err != nil {
+// 		s.server.Logger.Error().Err(err).Str("ride_id", rideID).Msg("Failed to assign driver")
+// 		return nil, fmt.Errorf("failed to accept ride: %w", err)
+// 	}
 
-	// Get updated ride
-	ride, err := s.repo.Ride.GetByID(ctx, rideID)
+// 	// Get updated ride
+// 	ride, err := s.repo.Ride.GetByID(ctx, rideID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	s.server.Logger.Info().
+// 		Str("ride_id", rideID).
+// 		Str("driver_id", driverID).
+// 		Msg("Ride accepted by driver")
+
+// 	// TODO: Notify user via WebSocket
+
+// 	return s.buildRideResponse(ctx, ride)
+// }
+
+// New logic
+
+func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (*model.RideResponse, error) {
+	tx, err := r.server.DB.Pool.BeginTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errs.Wrap(err, "failed to begin transaction")
 	}
 
-	s.server.Logger.Info().
-		Str("ride_id", rideID).
-		Str("driver_id", driverID).
-		Msg("Ride accepted by driver")
+	// Lock ride
+	defer tx.Rollback(ctx)
 
-	// TODO: Notify user via WebSocket
+	var status string
+	err = tx.QueryRow(ctx, `SELECT status FROM rides WHERE id = @ride_id FOR UPDATE`, pgx.NamedArgs{
+		"ride_id": rideID,
+	}).Scan(&status)
 
-	return s.buildRideResponse(ctx, ride)
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to query row")
+	}
+
+	if status != string(model.RideStatusRequested) {
+		return nil, errs.NewBadRequest("ride cannot be accepted in current status ride is already accepted")
+	}
+
+	// Ensure Driver not already in active ride
+	var count int 
+	if err  = tx.QueryRow(ctx,`
+	SELECT COUNT(1) 
+	FROM rides
+	WHERE driver_id = @driver_id AND 
+	status IN ('accepted','driver_arrived','in_progress')
+	`,pgx.NamedArgs{
+		"driver_id" : driverId,
+
+	}).Scan(&count)
+
+
+
+	if err != nil{
+		return nil, errs.Wrap(err, "failed to query row")
+	}
+
+
+
+	if count > 0 {
+		return nil, errs.NewBadRequest("driver already has an active ride")
+	}
+
+	// Update ride status
+	
+	_, err := tx.Exec(ctx,`
+	UPDATE rides
+	SET driver_id = @driver_id,
+	status = @status,
+	accepted_at = NOW(),
+	updated_at = NOW(),
+	WHERE id = @ride_id`,
+    pgx.NamedArgs{
+		"ride_id": rideID,
+		driver_id: driverId,
+		status: string(model.RideStatusAccepted),
+
+	})
+
+	if err != nil{
+		return nil, errs.Wrap(err, "failed to update ride")
+	}
+
+	if err != tx.Commit(ctx); err != nil{
+		return nil,	 errs.Wrap(err, "failed to commit transaction")
+	}
+
+	return r.buildRideResponse(ctx, rideID)
+
 }
+
+
+
+
+
+
 
 // StartRide marks a ride as in progress
-func (s *RideService) StartRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
-	ride, err := s.repo.Ride.GetByID(ctx, rideID)
-	if err != nil {
-		return nil, err
+// func (s *RideService) StartRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
+// 	ride, err := s.repo.Ride.GetByID(ctx, rideID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if ride.DriverID == nil || *ride.DriverID != driverID {
+// 		return nil, fmt.Errorf("unauthorized")
+// 	}
+
+// 	if ride.Status != model.RideStatusAccepted && ride.Status != model.RideStatusDriverArrived {
+// 		return nil, fmt.Errorf("ride cannot be started in current status")
+// 	}
+
+// 	// Update ride status
+// 	query := `
+// 		UPDATE rides 
+// 		SET status = $1, started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+// 		WHERE id = $2
+// 	`
+// 	if _, err := s.server.DB.Pool.Exec(ctx, query, model.RideStatusInProgress, rideID); err != nil {
+// 		return nil, fmt.Errorf("failed to start ride: %w", err)
+// 	}
+
+// 	s.server.Logger.Info().Str("ride_id", rideID).Msg("Ride started")
+
+// 	// Get updated ride
+// 	ride, err = s.repo.Ride.GetByID(ctx, rideID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return s.buildRideResponse(ctx, ride)
+// }
+
+
+// New Logic
+
+func( r *RideService) StartRide(ctx context.Context, driverId , rideID string) (*model.RideResponse,error){
+	 result , err := s.server.DB.Pool.Exec(ctx, `
+	UPDATE rides
+	SET status = @status,
+	started_at = NOW(),
+	updated_at = NOW()
+	WHERE id = @ride_id
+	AND driver_id = @driver_id
+	AND status IN ('accepted' , 'driver_arrived')`,
+    pgx.NamedArgs{
+		"ride_id":rideID,
+		"driver_id":driverId,
+		"status": model.RideStatusInProgress,
+	})
+
+	if err != nil{
+		return nil,errs.Wrap(err,"failed to start ride")
 	}
 
-	if ride.DriverID == nil || *ride.DriverID != driverID {
-		return nil, fmt.Errorf("unauthorized")
+	if result.RowsAffected() == 0{
+		return nil, errs.NewBadRequest("Cannot start ride")
 	}
 
-	if ride.Status != model.RideStatusAccepted && ride.Status != model.RideStatusDriverArrived {
-		return nil, fmt.Errorf("ride cannot be started in current status")
-	}
-
-	// Update ride status
-	query := `
-		UPDATE rides 
-		SET status = $1, started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2
-	`
-	if _, err := s.server.DB.Pool.Exec(ctx, query, model.RideStatusInProgress, rideID); err != nil {
-		return nil, fmt.Errorf("failed to start ride: %w", err)
-	}
-
-	s.server.Logger.Info().Str("ride_id", rideID).Msg("Ride started")
-
-	// Get updated ride
-	ride, err = s.repo.Ride.GetByID(ctx, rideID)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.buildRideResponse(ctx, ride)
+	return r.repo.Ride.GetByID(ctx,rideID)
 }
+
+
+
 
 // CompleteRide marks a ride as completed
-func (s *RideService) CompleteRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
-	ride, err := s.repo.Ride.GetByID(ctx, rideID)
-	if err != nil {
-		return nil, err
+// func (s *RideService) CompleteRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
+// 	ride, err := s.repo.Ride.GetByID(ctx, rideID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	if ride.DriverID == nil || *ride.DriverID != driverID {
+// 		return nil, fmt.Errorf("unauthorized")
+// 	}
+
+// 	if ride.Status != model.RideStatusInProgress {
+// 		return nil, fmt.Errorf("ride is not in progress")
+// 	}
+
+// 	// Update ride status
+// 	query := `
+// 		UPDATE rides 
+// 		SET status = $1, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+// 		WHERE id = $2
+// 	`
+// 	if _, err := s.server.DB.Pool.Exec(ctx, query, model.RideStatusCompleted, rideID); err != nil {
+// 		return nil, fmt.Errorf("failed to complete ride: %w", err)
+// 	}
+
+// 	s.server.Logger.Info().Str("ride_id", rideID).Msg("Ride completed")
+
+// 	// Get updated ride
+// 	ride, err = s.repo.Ride.GetByID(ctx, rideID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// TODO: Create payment order
+
+// 	return s.buildRideResponse(ctx, ride)
+// }
+
+
+func( r *RideService) CompleteRide( ctx context.Context,driverID ,rideID string,
+
+) (*model.Rideresponse, error){
+	result ,err := s.server.DB.Pool.Exec(ctx,`
+	UPDATE rides
+	SET status = @status,
+	completed_at =  NOW(),
+	updated_at = NOW()
+	WHERE id = @ride_id 
+	AND driver_id = @driver_id
+	AND status = @in_progress`,
+	pgx.NamedArgs{
+		"ride_id": rideID,
+		"driver_id": driverID,
+		"status": model.RideStatusCompleted,
+		"in_progress": model.RideStatusInProgress,
+	})
+
+	if err != nil{
+		return nil, errs.Wrap(err,"failed to complete ride")
+	}
+	if result.RowsAffected() == 0{
+		return nil, errs.NewBadRequest("cannot complete ride")
 	}
 
-	if ride.DriverID == nil || *ride.DriverID != driverID {
-		return nil, fmt.Errorf("unauthorized")
-	}
-
-	if ride.Status != model.RideStatusInProgress {
-		return nil, fmt.Errorf("ride is not in progress")
-	}
-
-	// Update ride status
-	query := `
-		UPDATE rides 
-		SET status = $1, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $2
-	`
-	if _, err := s.server.DB.Pool.Exec(ctx, query, model.RideStatusCompleted, rideID); err != nil {
-		return nil, fmt.Errorf("failed to complete ride: %w", err)
-	}
-
-	s.server.Logger.Info().Str("ride_id", rideID).Msg("Ride completed")
-
-	// Get updated ride
-	ride, err = s.repo.Ride.GetByID(ctx, rideID)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: Create payment order
-
-	return s.buildRideResponse(ctx, ride)
+	return r.repo.Ride.GetByID(ctx,rideID)
 }
+
 
 // CancelRide cancels a ride
 func (s *RideService) CancelRide(ctx context.Context, userID, rideID string) error {
@@ -246,8 +417,9 @@ func (s *RideService) RateRide(ctx context.Context, userID, rideID string, req *
 		UPDATE rides 
 		SET rating = $1, feedback = $2, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $3
+		AND status = $4
 	`
-	if _, err := s.server.DB.Pool.Exec(ctx, query, req.Rating, req.Feedback, rideID); err != nil {
+	if _, err := s.server.DB.Pool.Exec(ctx, query, req.Rating, req.Feedback, rideID, model.RideStatusCompleted); err != nil {
 		return fmt.Errorf("failed to rate ride: %w", err)
 	}
 
