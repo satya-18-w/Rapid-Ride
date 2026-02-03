@@ -9,7 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/satya-18-w/go-boilerplate/internal/errs"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/errs"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

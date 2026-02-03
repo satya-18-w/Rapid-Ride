@@ -6,9 +6,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/newrelic/go-agent/v3/integrations/nrpkgerrors"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/satya-18-w/go-boilerplate/internal/middleware"
-	"github.com/satya-18-w/go-boilerplate/internal/server"
-	"github.com/satya-18-w/go-boilerplate/internal/validation"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/middleware"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/validation"
 )
 
 // Handler Provides base functionality for all Handlers

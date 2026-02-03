@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	tern "github.com/jackc/tern/v2/migrate"
 	"github.com/rs/zerolog"
-	"github.com/satya-18-w/go-boilerplate/internal/config"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
 )
 
 

@@ -30,3 +30,27 @@ func NewWelcomeEmailTask(to, firstName string) (*asynq.Task, error) {
 		asynq.Queue("default"),
 		asynq.Timeout(30*time.Second)), nil
 }
+
+const (
+	TaskOTP = "email:otp"
+)
+
+type OTPEmailPayload struct {
+	To  string `json:"to"`
+	OTP string `json:"otp"`
+}
+
+func NewOTPEmailTask(to, otp string) (*asynq.Task, error) {
+	payload, err := json.Marshal(OTPEmailPayload{
+		To:  to,
+		OTP: otp,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return asynq.NewTask(TaskOTP, payload,
+		asynq.MaxRetry(3),
+		asynq.Queue("critical"), // OTP is critical
+		asynq.Timeout(30*time.Second)), nil
+}

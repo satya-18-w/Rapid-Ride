@@ -1,76 +1,89 @@
 package middleware
 
 import (
-	"encoding/json"
 	"net/http"
-	"time"
+	"strings"
 
-	"github.com/clerk/clerk-sdk-go/v2"
-	clerkhttp "github.com/clerk/clerk-sdk-go/v2/http"
 	"github.com/labstack/echo/v4"
-	"github.com/satya-18-w/go-boilerplate/internal/errs"
-	"github.com/satya-18-w/go-boilerplate/internal/server"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/model"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/service"
 )
 
 type AuthMiddleware struct {
-	server *server.Server
+	server      *server.Server
+	authService *service.AuthService
 }
-func NewAuthMiddleware(s *server.Server) *AuthMiddleware{
+
+func NewAuthMiddleware(s *server.Server, authService *service.AuthService) *AuthMiddleware {
 	return &AuthMiddleware{
-		server: s,
-
-		}
+		server:      s,
+		authService: authService,
+	}
 }
 
+// RequireAuth validates JWT token and sets user claims in context
+func (m *AuthMiddleware) RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		token := ""
+		authHeader := c.Request().Header.Get("Authorization")
 
+		if authHeader != "" {
+			// Extract token from "Bearer <token>"
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
+		}
 
-func (auth *AuthMiddleware) RequireAuth(next echo.HandlerFunc) echo.HandlerFunc{
-	return echo.WrapMiddleware(
-		clerkhttp.WithHeaderAuthorization(
-			clerkhttp.AuthorizationFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
-				start:=time.Now()
-				w.Header().Set("Content-Type","application/json")
-				w.WriteHeader(http.StatusUnauthorized)
+		if token == "" {
+			// Try to get from cookie
+			cookie, err := c.Cookie("access_token")
+			if err == nil {
+				token = cookie.Value
+			}
+		}
 
-				response:=map[string]string{
-					"code":"UNAUTHORIZED",
-					"message":"Unauthorized",
-					"override":"false",
-					"status":"401",
-				}
-				if err:= json.NewEncoder(w).Encode(response); err != nil{
-					auth.server.Logger.Error().Err(err).Str("Function","RequireAuth").Dur(
-						"duration",time.Since(start)).Msg("Failed to write JSON Response")
-				}else{
-					auth.server.Logger.Error().Str("function","RequireAuth").Dur("duration",time.Since(start)).Msg("Could not get session Claims from context")
-
-				}
-			}))))(func(c echo.Context) error{
-				start:=time.Now()
-
-				// func clerk.SessionClaimsFromContext(ctx context.Context) (*clerk.SessionClaims, bool)
-				// SessionClaimsFromContext returns the active session claims from the context.
-				claims,ok:=clerk.SessionClaimsFromContext(c.Request().Context())
-
-				if !ok{
-					auth.server.Logger.Error().
-					Str("function","RequireAuth").
-					Str("requestId",GetRequestID(c)).
-					Dur("duration",time.Since(start)).
-					Msg("Could not get Session claims from context")
-					return errs.NewUnauthorizedError("Unauthorized",false)
-				}
-
-
-				c.Set("User_id",claims.Subject)
-				c.Set("User_Role",claims.ActiveOrganizationID)
-				c.Set("permission",claims.Claims.ActiveOrganizationPermissions)
-				auth.server.Logger.Info().
-				Str("function","RequireAuth").
-				Str("user_ID",claims.Subject).
-				Str("request_ID",GetRequestID(c)).
-				Dur("duration",time.Since(start)).
-				Msg("User Authenticated Sussesfully")
-				return next(c)
+		if token == "" {
+			return c.JSON(http.StatusUnauthorized, map[string]string{
+				"error": "Missing or invalid authorization credentials",
 			})
+		}
+		claims, err := m.authService.ValidateToken(token)
+		if err != nil {
+			m.server.Logger.Error().Err(err).Msg("Token validation failed")
+			return c.JSON(http.StatusUnauthorized, map[string]string{
+				"error": "Invalid or expired token",
+			})
+		}
+
+		// Set claims in context for use in handlers
+		c.Set("user", claims)
+		return next(c)
+	}
+}
+
+// RequireRole validates that the authenticated user has one of the specified roles
+func (m *AuthMiddleware) RequireRole(roles ...model.UserRole) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			claims, ok := c.Get("user").(*service.JWTClaims)
+			if !ok {
+				return c.JSON(http.StatusUnauthorized, map[string]string{
+					"error": "Unauthorized",
+				})
+			}
+
+			// Check if user has required role
+			for _, role := range roles {
+				if claims.Role == role {
+					return next(c)
+				}
+			}
+
+			return c.JSON(http.StatusForbidden, map[string]string{
+				"error": "Insufficient permissions",
+			})
+		}
+	}
 }

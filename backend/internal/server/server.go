@@ -11,10 +11,10 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/redis/go-redis/v9"
-	"github.com/satya-18-w/go-boilerplate/internal/config"
-	"github.com/satya-18-w/go-boilerplate/internal/database"
-	"github.com/satya-18-w/go-boilerplate/internal/lib/job"
-	loggerpkg "github.com/satya-18-w/go-boilerplate/internal/logger"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/database"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/lib/job"
+	loggerpkg "github.com/satya-18-w/RAPID-RIDE/backend/internal/logger"
 )
 
 type Server struct {

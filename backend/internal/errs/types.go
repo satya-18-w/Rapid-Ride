@@ -1,6 +1,10 @@
 package errs
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/pkg/errors"
+)
 
 func NewUnauthorizedError(message string, override bool) *HTTPError {
 	return &HTTPError{
@@ -9,6 +13,10 @@ func NewUnauthorizedError(message string, override bool) *HTTPError {
 		Status:   http.StatusUnauthorized,
 		Override: override,
 	}
+}
+
+func NewUnauthorized(message string) *HTTPError {
+	return NewUnauthorizedError(message, false)
 }
 
 func NewForbiddenError(message string, override bool) *HTTPError {
@@ -37,6 +45,10 @@ func NewBadRequestError(message string, override bool, code *string, errors []Fi
 	}
 }
 
+func NewBadRequest(message string) *HTTPError {
+	return NewBadRequestError(message, false, nil, nil, nil)
+}
+
 func NewNotFoundError(message string, override bool, code *string) *HTTPError {
 	formattedCode := MakeUpperCaseWithUnderscores(http.StatusText(http.StatusNotFound))
 
@@ -63,4 +75,8 @@ func NewInternalServerError() *HTTPError {
 
 func ValidationError(err error) *HTTPError {
 	return NewBadRequestError("Validation failed: "+err.Error(), false, nil, nil, nil)
+}
+
+func Wrap(err error, message string) error {
+	return errors.Wrap(err, message)
 }

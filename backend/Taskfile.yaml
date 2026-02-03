@@ -1,55 +1,59 @@
-version: '3'
+version: "3"
 
 vars:
-  BOILERPLATE_DB_DSN: '{{.BOILERPLATE_DB_DSN | default ""}}'
+  RAPID_RIDE_DB_DSN: '{{.RAPID_RIDE_DB_DSN | default ""}}'
 
 tasks:
   help:
     desc: print this help message
     cmds:
-    - task --list-all
+      - task --list-all
     silent: true
 
   confirm:
     desc: confirmation prompt
-    cmds:
-    - |
-      echo -n 'Are you sure? [y/N] ' && read ans && [ ${ans:-N} = y ]
-    silent: true
+    prompt: Are you sure you want to continue?
     internal: true
 
   run:
-    desc: run the cmd/go-boilerplate application
+    desc: run the cmd/go-RAPID-RIDE application
     cmds:
-    - go run ./cmd/go-boilerplate
+      - go run ./cmd/go-RAPID-RIDE
 
   migrations:new:
     desc: create a new database migration
     vars:
       NAME: '{{.name | default ""}}'
     cmds:
-    - |
-      if [ -z "{{.NAME}}" ]; then
-        echo "Error: name parameter is required"
-        echo "Usage: task migrations:new name=migration_name"
-        exit 1
-      fi
-    - echo 'Creating migration file for {{.NAME}}...'
-    - tern new -m ./internal/database/migrations {{.NAME}}
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Error: name parameter is required"
+          echo "Usage: task migrations:new name=migration_name"
+          exit 1
+        fi
+      - echo 'Creating migration file for {{.NAME}}...'
+      - tern new -m ./internal/database {{.NAME}}
 
   migrations:up:
     desc: apply all up database migrations
-    deps: [ confirm ]
+    deps: [confirm]
+    preconditions:
+      - sh: test -n "{{.RAPID_RIDE_DB_DSN}}"
+        msg: |
+          RAPID_RIDE_DB_DSN environment variable is not set.
+          Please set it with your database connection string.
+          Example (PowerShell): $env:RAPID_RIDE_DB_DSN='postgres://user:pass@localhost:5432/dbname?sslmode=disable'
+          Example (Unix): export RAPID_RIDE_DB_DSN='postgres://user:pass@localhost:5432/dbname?sslmode=disable'
     cmds:
-    - echo 'Running up migrations...'
-    - tern migrate -m ./internal/database/migrations --conn-string {{.BOILERPLATE_DB_DSN}}
+      - echo 'Running up migrations...'
+      - tern migrate -m ./internal/database --conn-string {{.RAPID_RIDE_DB_DSN}}
 
   tidy:
     desc: format all .go files, and tidy and vendor module dependencies
     cmds:
-    - echo 'Formatting .go files...'
-    - go fmt ./...
-    - echo 'Tidying module dependencies...'
-    - go mod tidy
-    - echo 'Verifying dependencies...'
-    - go mod verify
+      - echo 'Formatting .go files...'
+      - go fmt ./...
+      - echo 'Tidying module dependencies...'
+      - go mod tidy
+      - echo 'Verifying dependencies...'
+      - go mod verify

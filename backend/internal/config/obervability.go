@@ -8,7 +8,7 @@ import (
 type ObservabilityConfig struct {
 	ServiceName  string             `koanf:"service_name" validate:"required"`
 	Environment  string             `koanf:"environment" validate:"required"`
-	Logging      LoggingConfig      `koanf:"logging" validate;"required"`
+	Logging      LoggingConfig      `koanf:"logging" validate:"required"`
 	NewRelic     NewRelicConfig     `koanf:"new_relic" validate:"required"`
 	HealthChecks HealthChecksConfig `koanf:"health_checks" validate:"required"`
 }
@@ -35,7 +35,7 @@ type HealthChecksConfig struct {
 
 func DefaultObservabilityConfig() *ObservabilityConfig {
 	return &ObservabilityConfig{
-		ServiceName: "boilerplate",
+		ServiceName: "RAPID-RIDE",
 		Environment: "development",
 		Logging: LoggingConfig{
 			Level:              "info",

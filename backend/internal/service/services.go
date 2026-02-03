@@ -1,21 +1,26 @@
 package service
 
 import (
-	"github.com/satya-18-w/go-boilerplate/internal/lib/job"
-	"github.com/satya-18-w/go-boilerplate/internal/repository"
-	"github.com/satya-18-w/go-boilerplate/internal/server"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/repository"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
 )
 
 type Services struct {
-	Auth *AuthService
-	Job  *job.JobService
+	Auth     *AuthService
+	Driver   *DriverService
+	Location *LocationService
+	Ride     *RideService
 }
 
 func NewServices(s *server.Server, repos *repository.Repositories) (*Services, error) {
-	authService := NewAuthService(s)
+	authService := NewAuthService(s, repos)
+	driverService := NewDriverService(s, repos)
+	locationService := NewLocationService(s, repos)
+	rideService := NewRideService(s, repos, locationService)
 	return &Services{
-		Auth: authService,
-		Job:  s.Job,
+		Auth:     authService,
+		Driver:   driverService,
+		Location: locationService,
+		Ride:     rideService,
 	}, nil
-
 }

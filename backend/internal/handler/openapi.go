@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/labstack/echo/v4"
-	"github.com/satya-18-w/go-boilerplate/internal/server"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
 )
 
 type OpenAPIHandler struct {

@@ -5,25 +5,25 @@ import (
 
 	"github.com/labstack/echo/v4"
 	echoMiddleware "github.com/labstack/echo/v4/middleware"
-	"github.com/satya-18-w/go-boilerplate/internal/handler"
-	"github.com/satya-18-w/go-boilerplate/internal/middleware"
-	"github.com/satya-18-w/go-boilerplate/internal/server"
-	"github.com/satya-18-w/go-boilerplate/internal/service"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/handler"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/middleware"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/model"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/service"
 	"golang.org/x/time/rate"
 )
 
 func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services) *echo.Echo {
-	middlewares := middleware.NewMiddlewares(s)
+	middlewares := middleware.NewMiddlewares(s, services)
 
 	router := echo.New()
 	router.HTTPErrorHandler = middlewares.Global.GlobalErrorHandler
 
-	// Global Middlewares
 	router.Use(
 		echoMiddleware.RateLimiterWithConfig(echoMiddleware.RateLimiterConfig{
 			Store: echoMiddleware.NewRateLimiterMemoryStore(rate.Limit(20)),
 			DenyHandler: func(c echo.Context, identifier string, err error) error {
-				// record ratelimit hit metrics
+
 				if rateLimitMiddleware := middlewares.RateLimit; rateLimitMiddleware != nil {
 					rateLimitMiddleware.RecordRateLimitHit(c.Path())
 				}
@@ -49,10 +49,59 @@ func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services
 		middlewares.Global.Recover(),
 	)
 
-	// Register Sytem Router
 	registerSystemRouter(router, h)
 
-	// Register Versioning of the APi
-	router.Group("/api/v1")
+	v1 := router.Group("/api/v1")
+
+	auth := v1.Group("/auth")
+	{
+		auth.POST("/signup", h.Auth.Signup)
+		auth.POST("/login", h.Auth.Login)
+		auth.POST("/otp/send", h.Auth.SendOTP)
+		auth.POST("/otp/verify", h.Auth.VerifyOTP)
+		auth.GET("/me", h.Auth.Me, middlewares.Auth.RequireAuth)
+	}
+
+	riders := v1.Group("/riders", middlewares.Auth.RequireAuth, middlewares.Auth.RequireRole(model.RoleRider, model.RoleAdmin))
+	{
+
+		riders.POST("/logout", h.Auth.SignOut)
+	}
+
+	drivers := v1.Group("/drivers", middlewares.Auth.RequireAuth, middlewares.Auth.RequireRole(model.RoleDriver, model.RoleAdmin))
+	{
+
+		drivers.POST("/profile", h.Driver.SetupProfile)
+		drivers.POST("/logout", h.Auth.SignOut)
+	}
+
+	admin := v1.Group("/admin", middlewares.Auth.RequireAuth, middlewares.Auth.RequireRole(model.RoleAdmin))
+	{
+
+		admin.POST("/logout", h.Auth.SignOut)
+	}
+
+	// Location routes (drivers only)
+	location := v1.Group("/location", middlewares.Auth.RequireAuth, middlewares.Auth.RequireRole(model.RoleDriver))
+	{
+		location.POST("/update", h.Location.UpdateLocation)
+		location.POST("/availability", h.Location.SetAvailability)
+	}
+
+	// Public location search (for users to find nearby drivers)
+	v1.POST("/location/nearby-drivers", h.Location.FindNearbyDrivers, middlewares.Auth.RequireAuth)
+
+	// Ride routes
+	rides := v1.Group("/rides", middlewares.Auth.RequireAuth)
+	{
+		rides.POST("", h.Ride.CreateRide, middlewares.Auth.RequireRole(model.RoleRider))
+		rides.GET("/active", h.Ride.GetActiveRide)
+		rides.POST("/:id/accept", h.Ride.AcceptRide, middlewares.Auth.RequireRole(model.RoleDriver))
+		rides.POST("/:id/start", h.Ride.StartRide, middlewares.Auth.RequireRole(model.RoleDriver))
+		rides.POST("/:id/complete", h.Ride.CompleteRide, middlewares.Auth.RequireRole(model.RoleDriver))
+		rides.POST("/:id/cancel", h.Ride.CancelRide)
+		rides.POST("/:id/rate", h.Ride.RateRide, middlewares.Auth.RequireRole(model.RoleRider))
+	}
+
 	return router
 }

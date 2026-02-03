@@ -1,6 +1,6 @@
 package middleware
 
-import "github.com/satya-18-w/go-boilerplate/internal/server"
+import "github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
 
 type RateLimitMiddleware struct {
 	server *server.Server

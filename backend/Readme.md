@@ -1,4 +1,4 @@
-# Go Boilerplate Backend
+# Go RAPID-RIDE Backend
 
 A production-ready Go backend service built with Echo framework, featuring clean architecture, comprehensive middleware, and modern DevOps practices.
 
@@ -8,7 +8,7 @@ This backend follows clean architecture principles with clear separation of conc
 
 ```
 backend/
-├── cmd/go-boilerplate/        # Application entry point
+├── cmd/go-RAPID-RIDE/        # Application entry point
 ├── internal/                  # Private application code
 │   ├── config/               # Configuration management
 │   ├── database/             # Database connections and migrations
@@ -102,7 +102,7 @@ task run
 
 ## Configuration
 
-Configuration is managed through environment variables with the `BOILERPLATE_` prefix:
+Configuration is managed through environment variables with the `RAPID-RIDE_` prefix:
 
 ## Development
 

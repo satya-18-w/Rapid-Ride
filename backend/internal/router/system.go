@@ -2,7 +2,7 @@ package router
 
 import (
 	"github.com/labstack/echo/v4"
-	"github.com/satya-18-w/go-boilerplate/internal/handler"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/handler"
 )
 
 func registerSystemRouter(r *echo.Echo, h *handler.Handlers){

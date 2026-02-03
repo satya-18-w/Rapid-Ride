@@ -11,7 +11,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
-	"github.com/satya-18-w/go-boilerplate/internal/config"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
 )
 
 // Logger for new relic

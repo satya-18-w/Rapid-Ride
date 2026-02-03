@@ -7,8 +7,8 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/rs/zerolog"
-	"github.com/satya-18-w/go-boilerplate/internal/config"
-	"github.com/satya-18-w/go-boilerplate/internal/lib/email"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/lib/email"
 )
 
 var emailClient *email.Client
@@ -45,5 +45,36 @@ func (j *JobService) handleWelcomeEmailTask(ctx context.Context, t *asynq.Task) 
 		Str("type", "welcome").
 		Str("to", p.To).
 		Msg("Successfully sent welcome email")
+	return nil
+}
+
+func (j *JobService) handleOTPEmailTask(ctx context.Context, t *asynq.Task) error {
+	var p OTPEmailPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("failed to unmarshal otp email payload: %w", err)
+	}
+
+	j.logger.Info().
+		Str("type", "otp").
+		Str("to", p.To).
+		Msg("Processing otp email task")
+
+	err := emailClient.SendOTPEmail(
+		p.To,
+		p.OTP,
+	)
+	if err != nil {
+		j.logger.Error().
+			Str("type", "otp").
+			Str("to", p.To).
+			Err(err).
+			Msg("Failed to send otp email")
+		return err
+	}
+
+	j.logger.Info().
+		Str("type", "otp").
+		Str("to", p.To).
+		Msg("Successfully sent otp email")
 	return nil
 }

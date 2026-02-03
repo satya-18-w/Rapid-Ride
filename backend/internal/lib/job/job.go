@@ -3,7 +3,7 @@ package job
 import (
 	"github.com/hibiken/asynq"
 	"github.com/rs/zerolog"
-	"github.com/satya-18-w/go-boilerplate/internal/config"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
 )
 
 type JobService struct {
@@ -42,6 +42,7 @@ func (j *JobService) Start() error {
 	mux := asynq.NewServeMux()
 
 	mux.HandleFunc(TaskWelcome, j.handleWelcomeEmailTask)
+	mux.HandleFunc(TaskOTP, j.handleOTPEmailTask)
 	j.logger.Info().Msg("Starting Backgrond Job Server")
 	if err := j.Server.Start(mux); err != nil {
 		return err
