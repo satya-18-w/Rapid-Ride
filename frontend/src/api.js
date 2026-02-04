@@ -8,6 +8,36 @@ const api = axios.create({
     },
 });
 
+// Add request interceptor to attach JWT token
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+// Add response interceptor to handle 401 errors
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            // Clear invalid token
+            localStorage.removeItem('token');
+            // Optionally redirect to login
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/captain-login') {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const sendOTP = async (email, role) => {
     return await api.post('/auth/otp/send', { email, role });
 };
@@ -78,6 +108,41 @@ export const cancelRide = async (rideId) => {
 
 export const rateRide = async (rideId, rating, feedback = '') => {
     return await api.post(`/rides/${rideId}/rate`, { rating, feedback });
+};
+
+// Payment APIs
+export const createPaymentOrder = async (rideId, amount, paymentMethod) => {
+    return await api.post('/payments/create', {
+        ride_id: rideId,
+        amount: amount,
+        payment_method: paymentMethod
+    });
+};
+
+export const verifyPayment = async (paymentId, razorpayOrderId, razorpayPaymentId, razorpaySignature) => {
+    return await api.post('/payments/verify', {
+        payment_id: paymentId,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_signature: razorpaySignature
+    });
+};
+
+export const processCashPayment = async (paymentId) => {
+    return await api.post('/payments/cash', {
+        payment_id: paymentId
+    });
+};
+
+export const processUPIPayment = async (paymentId, upiId) => {
+    return await api.post('/payments/upi', {
+        payment_id: paymentId,
+        upi_id: upiId
+    });
+};
+
+export const getPaymentByRideId = async (rideId) => {
+    return await api.get(`/payments/ride/${rideId}`);
 };
 
 export default api;

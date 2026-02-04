@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 
 const PaymentSelector = ({ onSelect, selectedPayment, amount }) => {
     const [showUPIOptions, setShowUPIOptions] = useState(false);
+    const [showCardForm, setShowCardForm] = useState(false);
     const [upiId, setUpiId] = useState('');
+    const [cardDetails, setCardDetails] = useState({
+        number: '',
+        expiry: '',
+        cvv: '',
+        holder: ''
+    });
 
     const paymentMethods = [
         {
@@ -48,9 +55,14 @@ const PaymentSelector = ({ onSelect, selectedPayment, amount }) => {
     const handlePaymentSelect = (method) => {
         if (method.id === 'upi') {
             setShowUPIOptions(true);
+            setShowCardForm(false);
+        } else if (method.id === 'card') {
+            setShowCardForm(true);
+            setShowUPIOptions(false);
         } else {
             onSelect(method);
             setShowUPIOptions(false);
+            setShowCardForm(false);
         }
     };
 
@@ -61,6 +73,16 @@ const PaymentSelector = ({ onSelect, selectedPayment, amount }) => {
             upiName: upiApp.name
         });
         setShowUPIOptions(false);
+    };
+
+    const handleCardSubmit = () => {
+        if (cardDetails.number && cardDetails.expiry && cardDetails.cvv && cardDetails.holder) {
+            onSelect({
+                ...paymentMethods.find(m => m.id === 'card'),
+                cardDetails: cardDetails
+            });
+            setShowCardForm(false);
+        }
     };
 
     return (
@@ -75,7 +97,7 @@ const PaymentSelector = ({ onSelect, selectedPayment, amount }) => {
                 )}
             </div>
 
-            {!showUPIOptions ? (
+            {!showUPIOptions && !showCardForm ? (
                 <div className="space-y-3">
                     {paymentMethods.map((method) => {
                         const isSelected = selectedPayment?.id === method.id;
@@ -120,7 +142,7 @@ const PaymentSelector = ({ onSelect, selectedPayment, amount }) => {
                         );
                     })}
                 </div>
-            ) : (
+            ) : showUPIOptions ? (
                 <div className="space-y-4">
                     <button
                         onClick={() => setShowUPIOptions(false)}
@@ -178,6 +200,90 @@ const PaymentSelector = ({ onSelect, selectedPayment, amount }) => {
                                 Add
                             </button>
                         </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    <button
+                        onClick={() => setShowCardForm(false)}
+                        className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>Back</span>
+                    </button>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">
+                                Card Number
+                            </label>
+                            <input
+                                type="text"
+                                value={cardDetails.number}
+                                onChange={(e) => setCardDetails({ ...cardDetails, number: e.target.value.replace(/\D/g, '').slice(0, 16) })}
+                                placeholder="1234 5678 9012 3456"
+                                maxLength="16"
+                                className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-lime-500 transition-colors"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">
+                                    Expiry Date
+                                </label>
+                                <input
+                                    type="text"
+                                    value={cardDetails.expiry}
+                                    onChange={(e) => {
+                                        let value = e.target.value.replace(/\D/g, '');
+                                        if (value.length >= 2) {
+                                            value = value.slice(0, 2) + '/' + value.slice(2, 4);
+                                        }
+                                        setCardDetails({ ...cardDetails, expiry: value });
+                                    }}
+                                    placeholder="MM/YY"
+                                    maxLength="5"
+                                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-lime-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">
+                                    CVV
+                                </label>
+                                <input
+                                    type="password"
+                                    value={cardDetails.cvv}
+                                    onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value.replace(/\D/g, '').slice(0, 3) })}
+                                    placeholder="123"
+                                    maxLength="3"
+                                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-lime-500 transition-colors"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">
+                                Card Holder Name
+                            </label>
+                            <input
+                                type="text"
+                                value={cardDetails.holder}
+                                onChange={(e) => setCardDetails({ ...cardDetails, holder: e.target.value })}
+                                placeholder="JOHN DOE"
+                                className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 uppercase focus:outline-none focus:border-lime-500 transition-colors"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleCardSubmit}
+                            disabled={!cardDetails.number || !cardDetails.expiry || !cardDetails.cvv || !cardDetails.holder}
+                            className="w-full bg-lime-500 hover:bg-lime-600 disabled:bg-gray-700 disabled:text-gray-500 text-black font-bold px-6 py-3 rounded-xl transition-all"
+                        >
+                            Add Card
+                        </button>
                     </div>
                 </div>
             )}
