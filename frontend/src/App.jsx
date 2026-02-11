@@ -7,10 +7,11 @@ import DriverLogin from './pages/CaptainLogin.jsx'
 import DriverSignup from './pages/CaptainSignup.jsx'
 import UserHome from './pages/UserHome.jsx'
 import DriverDashboard from './pages/DriverDashboard.jsx'
+import { WebSocketProvider } from './context/WebSocketContext.jsx'
 
 const App = () => {
   return (
-    <div>
+    <WebSocketProvider>
       <Routes>
         <Route path="/" element={<Home />}></Route>
         <Route path="/user/login" element={<UserLogin />}></Route>
@@ -20,8 +21,7 @@ const App = () => {
         <Route path="/driver/signup" element={<DriverSignup />}></Route>
         <Route path="/driver/dashboard" element={<DriverDashboard />}></Route>
       </Routes>
-
-    </div>
+    </WebSocketProvider>
   )
 }
 

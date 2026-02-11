@@ -1,4 +1,4 @@
-import React from 'react';
+import { useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -45,7 +45,7 @@ const createVehicleIcon = (vehicleType) => {
 // Component to recenter map
 function RecenterMap({ center }) {
     const map = useMap();
-    React.useEffect(() => {
+    useEffect(() => {
         if (center) {
             map.setView(center, map.getZoom());
         }
@@ -64,7 +64,7 @@ const Map = ({
     height = '100%',
     vehicleType = 'sedan' // New prop for vehicle type
 }) => {
-    const routePositions = React.useMemo(() => {
+    const routePositions = useMemo(() => {
         if (showRoute && pickupLocation && dropoffLocation) {
             return [
                 [pickupLocation.latitude, pickupLocation.longitude],
@@ -75,27 +75,27 @@ const Map = ({
     }, [showRoute, pickupLocation, dropoffLocation]);
 
     // Create vehicle-specific icon
-    const driverIcon = React.useMemo(() => createVehicleIcon(vehicleType), [vehicleType]);
+    const driverIcon = useMemo(() => createVehicleIcon(vehicleType), [vehicleType]);
 
     // Create pickup icon (lime green)
-    const pickupIcon = new L.Icon({
+    const pickupIcon = useMemo(() => new L.Icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
         shadowSize: [41, 41]
-    });
+    }), []);
 
     // Create dropoff icon (red)
-    const dropoffIcon = new L.Icon({
+    const dropoffIcon = useMemo(() => new L.Icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
         iconSize: [25, 41],
         iconAnchor: [12, 41],
         popupAnchor: [1, -34],
         shadowSize: [41, 41]
-    });
+    }), []);
 
     return (
         <div style={{ height, width: '100%' }}>

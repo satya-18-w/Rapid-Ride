@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	mrand "math/rand"
 	"strconv"
@@ -189,6 +187,20 @@ func (s *AuthService) generateOTP() string {
 }
 
 func (s *AuthService) generateToken(user *model.User) (string, error) {
+	// Get secret key from config
+	secretKey := s.server.Config.Auth.SecretKey
+	if secretKey == "" {
+		s.server.Logger.Error().Msg("CRITICAL: Auth Secret Key is EMPTY in config!")
+		return "", fmt.Errorf("auth secret key is not configured")
+	}
+
+	s.server.Logger.Debug().
+		Int("secret_key_length", len(secretKey)).
+		Str("user_id", user.ID.String()).
+		Str("email", user.Email).
+		Str("role", string(user.Role)).
+		Msg("Generating JWT token")
+
 	claims := JWTClaims{
 		UserID: user.ID,
 		Email:  user.Email,
@@ -202,41 +214,62 @@ func (s *AuthService) generateToken(user *model.User) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Get secret key from config
-	secretKey := s.server.Config.Auth.SecretKey
-	if secretKey == "" {
-		// Generate a random secret key if not configured (not recommended for production)
-		key := make([]byte, 32)
-		if _, err := rand.Read(key); err != nil {
-			return "", fmt.Errorf("failed to generate secret key: %w", err)
-		}
-		secretKey = base64.StdEncoding.EncodeToString(key)
-	}
-
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
+		s.server.Logger.Error().Err(err).Msg("Failed to sign JWT token")
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
+
+	s.server.Logger.Debug().
+		Str("token_preview", tokenString[:min(20, len(tokenString))]+"...").
+		Msg("JWT token generated successfully")
 
 	return tokenString, nil
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
+	secretKey := s.server.Config.Auth.SecretKey
+	if secretKey == "" {
+		s.server.Logger.Error().Msg("CRITICAL: Auth Secret Key is EMPTY during validation!")
+		return nil, fmt.Errorf("auth secret key is not configured")
+	}
+
+	s.server.Logger.Debug().
+		Int("secret_key_length", len(secretKey)).
+		Str("token_preview", tokenString[:min(20, len(tokenString))]+"...").
+		Msg("Validating JWT token")
+
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			s.server.Logger.Error().
+				Str("method", fmt.Sprintf("%v", token.Header["alg"])).
+				Msg("Unexpected signing method")
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(s.server.Config.Auth.SecretKey), nil
+		return []byte(secretKey), nil
 	})
 
 	if err != nil {
+		s.server.Logger.Error().Err(err).Msg("Failed to parse JWT token")
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		s.server.Logger.Info().
+			Str("user_id", claims.UserID.String()).
+			Str("email", claims.Email).
+			Str("role", string(claims.Role)).
+			Msg("JWT token validated successfully")
 		return claims, nil
 	}
 
+	s.server.Logger.Error().Msg("Invalid JWT token claims or token not valid")
 	return nil, fmt.Errorf("invalid token")
 }

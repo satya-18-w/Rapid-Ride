@@ -125,20 +125,17 @@ func (h *HealthHandler) CheckHealth(c echo.Context) error {
 
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to write JSON response")
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to write JSON response")
-			if h.server.LoggerService != nil && h.server.LoggerService.GetApplication() != nil {
-				h.server.LoggerService.GetApplication().RecordCustomEvent(
-					"HealthCheckError", map[string]interface{}{
-						"check_type":    "response",
-						"operation":     "health_check",
-						"error_type":    "json_response_error",
-						"error_message": err.Error(),
-					})
-			}
-			return fmt.Errorf("failed to write JSON response: %w", err)
+		if h.server.LoggerService != nil && h.server.LoggerService.GetApplication() != nil {
+			h.server.LoggerService.GetApplication().RecordCustomEvent(
+				"HealthCheckError", map[string]interface{}{
+					"check_type":    "response",
+					"operation":     "health_check",
+					"error_type":    "json_response_error",
+					"error_message": err.Error(),
+				})
 		}
-
+		return fmt.Errorf("failed to write JSON response: %w", err)
 	}
+
 	return nil
 }

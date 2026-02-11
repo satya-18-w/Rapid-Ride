@@ -9,12 +9,13 @@ import (
 
 	"github.com/newrelic/go-agent/v3/integrations/nrredis-v9"
 
-	"github.com/rs/zerolog"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/database"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/lib/job"
 	loggerpkg "github.com/satya-18-w/RAPID-RIDE/backend/internal/logger"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/realtime"
 )
 
 type Server struct {
@@ -25,6 +26,7 @@ type Server struct {
 	Redis         *redis.Client
 	httpServer    *http.Server
 	Job           *job.JobService
+	Hub           *realtime.Hub
 }
 
 func New(cfg *config.Config, logger *zerolog.Logger, loggerservice *loggerpkg.LoggerService) (*Server, error) {
@@ -59,6 +61,10 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerservice *loggerpkg.Lo
 	if err := jobservice.Start(); err != nil {
 		return nil, err
 	}
+	// WebSocket Hub
+	hub := realtime.NewHub(*logger)
+	go hub.Run()
+
 	server := &Server{
 		Config:        cfg,
 		Logger:        logger,
@@ -66,6 +72,7 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerservice *loggerpkg.Lo
 		DB:            db,
 		Redis:         redisclient,
 		Job:           jobservice,
+		Hub:           hub,
 	}
 
 	// Start metrics collection

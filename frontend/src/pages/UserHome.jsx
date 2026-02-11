@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useWebSocket } from '../context/WebSocketContext';
 import { useNavigate } from 'react-router-dom';
 import FuturisticMap from '../components/FuturisticMap';
 import RideCard from '../components/RideCard';
 import LocationSearchInput from '../components/LocationSearchInput';
 import VehicleSelector from '../components/VehicleSelector';
-import PaymentSelector from '../components/PaymentSelector';
+import PaymentSelector from '../components/PaymentSelector.jsx';
 import OTPVerification from '../components/OTPVerification';
-import { createRide, getActiveRide, cancelRide, rateRide, createPaymentOrder, processCashPayment, getPaymentByRideId } from '../api';
+import { createRide, getActiveRide, cancelRide, rateRide, createPaymentOrder, processCashPayment, getPaymentByRideId, findNearbyDrivers } from '../api';
 
 const UserHome = () => {
     const navigate = useNavigate();
@@ -47,18 +48,6 @@ const UserHome = () => {
                     setCurrentLocation(location);
                     setPickupLocation(location);
                     setPickupAddress(`${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`);
-
-                    // Simulate nearby drivers
-                    const steps = [
-                        { lat_offset: 0.002, lng_offset: 0.003 },
-                        { lat_offset: -0.002, lng_offset: 0.004 },
-                        { lat_offset: 0.001, lng_offset: -0.003 },
-                        { lat_offset: -0.001, lng_offset: -0.002 },
-                    ];
-                    setNearbyDrivers(steps.map(s => ({
-                        latitude: location.latitude + s.lat_offset,
-                        longitude: location.longitude + s.lng_offset
-                    })));
                 },
                 (error) => {
                     console.error('Error getting location:', error);
@@ -71,6 +60,33 @@ const UserHome = () => {
         }
     }, []);
 
+    // Fetch nearby drivers when location is set
+    useEffect(() => {
+        if (currentLocation) {
+            const fetchDrivers = async () => {
+                try {
+                    const response = await findNearbyDrivers(currentLocation.latitude, currentLocation.longitude);
+                    if (response.data && response.data.drivers) {
+                        // Map API response to expected format (flatten location)
+                        setNearbyDrivers(response.data.drivers.map(d => ({
+                            latitude: d.location.latitude,
+                            longitude: d.location.longitude,
+                            id: d.driver_id,
+                            vehicleType: d.vehicle_type
+                        })));
+                    }
+                } catch (error) {
+                    console.error('Error fetching nearby drivers:', error);
+                }
+            };
+
+            fetchDrivers();
+            // Poll for nearby drivers every 10 seconds
+            const interval = setInterval(fetchDrivers, 10000);
+            return () => clearInterval(interval);
+        }
+    }, [currentLocation]);
+
     // Calculate distance when both locations are set
     useEffect(() => {
         if (pickupLocation && dropoffLocation) {
@@ -79,25 +95,41 @@ const UserHome = () => {
         }
     }, [pickupLocation, dropoffLocation]);
 
+    const activeRideRef = React.useRef(activeRide);
+
+    useEffect(() => {
+        activeRideRef.current = activeRide;
+    }, [activeRide]);
+
     // Poll for active ride
     useEffect(() => {
         const fetchActiveRide = async () => {
+            // Check if token exists before making API call
+            const token = localStorage.getItem('token');
+            if (!token) {
+                return;
+            }
+
             try {
                 const response = await getActiveRide();
+                const currentRide = activeRideRef.current; // Use ref to get latest state
+
                 // Check if status changed to accepted to show OTP
-                if (response.data && response.data.status === 'accepted' && (!activeRide || activeRide.status !== 'accepted')) {
+                if (response.data && response.data.status === 'accepted' && (!currentRide || currentRide.status !== 'accepted')) {
                     setShowOTPModal(true);
                 }
                 setActiveRide(response.data);
             } catch (error) {
-                // setActiveRide(null); // Don't clear immediately to avoid flickering
+                if (error.response?.status !== 401) {
+                    setActiveRide(null);
+                }
             }
         };
 
         fetchActiveRide();
         const interval = setInterval(fetchActiveRide, 5000);
         return () => clearInterval(interval);
-    }, [activeRide, showOTPModal]); // Add dependency to activeRide to detect status change
+    }, []); // Empty dependency array prevents re-running effect on state change
 
     const calculateDistance = (loc1, loc2) => {
         const R = 6371; // Earth's radius in km

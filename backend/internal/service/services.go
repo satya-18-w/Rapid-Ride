@@ -10,6 +10,7 @@ type Services struct {
 	Driver   *DriverService
 	Location *LocationService
 	Ride     *RideService
+	Payment  PaymentService
 }
 
 func NewServices(s *server.Server, repos *repository.Repositories) (*Services, error) {
@@ -17,10 +18,12 @@ func NewServices(s *server.Server, repos *repository.Repositories) (*Services, e
 	driverService := NewDriverService(s, repos)
 	locationService := NewLocationService(s, repos)
 	rideService := NewRideService(s, repos, locationService)
+	paymentService := NewPaymentService(repos.Payment, *repos.Ride)
 	return &Services{
 		Auth:     authService,
 		Driver:   driverService,
 		Location: locationService,
 		Ride:     rideService,
+		Payment:  paymentService,
 	}, nil
 }

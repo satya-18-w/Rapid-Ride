@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/errs"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/model"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/repository"
@@ -102,6 +103,27 @@ func (r *RideService) CreateRideRequest(ctx context.Context, userID string, req 
 	if err := r.repo.Ride.Create(ctx, ride); err != nil {
 		return nil, err
 	}
+
+	// Add to Redis Geospatial Index
+	go func() {
+		// Use a background context or specific timeout context for Redis op
+		// to avoid holding up the response significantly, or handle error gracefully
+		bgCtx := context.Background()
+		cmd := r.server.Redis.GeoAdd(bgCtx, "rides:requested", &redis.GeoLocation{
+			Name:      ride.ID,
+			Longitude: ride.PickupLocation.Longitude,
+			Latitude:  ride.PickupLocation.Latitude,
+		})
+		if err := cmd.Err(); err != nil {
+			r.server.Logger.Error().Err(err).Str("ride_id", ride.ID).Msg("Failed to add ride to Redis GEO index")
+		} else {
+			// Set expiration for the key if it's new (optional, but good practice to clean up eventually)
+			// But since we use ZREM on accept/cancel, explicit expiration might not be needed immediately
+			// unless we want to auto-expire old requests.
+			// r.server.Redis.Expire(bgCtx, "rides:requested", 24*time.Hour)
+		}
+	}()
+
 	return r.buildRideResponse(ctx, ride)
 
 }
@@ -139,7 +161,24 @@ func (r *RideService) CreateRideRequest(ctx context.Context, userID string, req 
 // New logic
 
 func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (*model.RideResponse, error) {
-	tx, err := r.server.DB.Pool.BeginTx(ctx)
+	// driverId is actually the UserID from the context
+	driverUserUUID, err := uuid.Parse(driverId)
+	if err != nil {
+		return nil, errs.NewBadRequest("invalid driver user id")
+	}
+
+	driverProfile, err := r.repo.Driver.GetByUserID(ctx, driverUserUUID)
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to get driver profile")
+	}
+	if driverProfile == nil {
+		return nil, errs.NewBadRequest("driver profile not found service")
+	}
+
+	// Use the actual Driver ID (PK of drivers table)
+	actualDriverID := driverProfile.ID.String()
+
+	tx, err := r.server.DB.Pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, errs.Wrap(err, "failed to begin transaction")
 	}
@@ -161,62 +200,92 @@ func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (
 	}
 
 	// Ensure Driver not already in active ride
-	var count int 
-	if err  = tx.QueryRow(ctx,`
+	var count int
+	err = tx.QueryRow(ctx, `
 	SELECT COUNT(1) 
 	FROM rides
 	WHERE driver_id = @driver_id AND 
-	status IN ('accepted','driver_arrived','in_progress')
-	`,pgx.NamedArgs{
-		"driver_id" : driverId,
-
+	status IN ('accepted','driver_arrived','in_progress')`, pgx.NamedArgs{
+		"driver_id": actualDriverID,
 	}).Scan(&count)
 
-
-
-	if err != nil{
+	if err != nil {
 		return nil, errs.Wrap(err, "failed to query row")
 	}
-
-
 
 	if count > 0 {
 		return nil, errs.NewBadRequest("driver already has an active ride")
 	}
 
 	// Update ride status
-	
-	_, err := tx.Exec(ctx,`
+
+	_, err = tx.Exec(ctx, `
 	UPDATE rides
 	SET driver_id = @driver_id,
 	status = @status,
 	accepted_at = NOW(),
-	updated_at = NOW(),
+	updated_at = NOW()
 	WHERE id = @ride_id`,
-    pgx.NamedArgs{
-		"ride_id": rideID,
-		driver_id: driverId,
-		status: string(model.RideStatusAccepted),
+		pgx.NamedArgs{
+			"ride_id":   rideID,
+			"driver_id": actualDriverID,
+			"status":    string(model.RideStatusAccepted),
+		})
 
-	})
-
-	if err != nil{
+	if err != nil {
 		return nil, errs.Wrap(err, "failed to update ride")
 	}
 
-	if err != tx.Commit(ctx); err != nil{
-		return nil,	 errs.Wrap(err, "failed to commit transaction")
+	if err = tx.Commit(ctx); err != nil {
+		return nil, errs.Wrap(err, "failed to commit transaction")
 	}
 
-	return r.buildRideResponse(ctx, rideID)
+	rideResult, err := r.repo.Ride.GetByID(ctx, rideID)
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to get ride")
+	}
+
+	// Remove from Redis Geospatial Index
+	go func() {
+		if err := r.server.Redis.ZRem(context.Background(), "rides:requested", rideID).Err(); err != nil {
+			r.server.Logger.Error().Err(err).Str("ride_id", rideID).Msg("Failed to remove ride from Redis GEO index")
+		}
+	}()
+
+	// Broadcast to Rider
+	resp, _ := r.buildRideResponse(ctx, rideResult)
+	r.server.Hub.BroadcastToUser(rideResult.UserID, "ride_accepted", resp)
+
+	return resp, nil
 
 }
 
+// StartRideWithOTP starts a ride with OTP verification
+func (r *RideService) StartRideWithOTP(ctx context.Context, driverID, rideID, otp string) (*model.RideResponse, error) {
+	// Get ride to verify OTP
+	ride, err := r.repo.Ride.GetByID(ctx, rideID)
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to get ride")
+	}
 
+	// Verify driver assignment
+	if ride.DriverID == nil || *ride.DriverID != driverID {
+		return nil, errs.NewBadRequest("unauthorized - ride not assigned to this driver")
+	}
 
+	// Verify OTP
+	if ride.OTP != otp {
+		return nil, errs.NewBadRequest("invalid OTP")
+	}
 
+	// Verify ride status
+	if ride.Status != model.RideStatusAccepted && ride.Status != model.RideStatusDriverArrived {
+		return nil, errs.NewBadRequest("ride cannot be started in current status")
+	}
 
-
+	// Start the ride
+	return r.StartRide(ctx, driverID, rideID)
+}
 
 // StartRide marks a ride as in progress
 // func (s *RideService) StartRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
@@ -235,7 +304,7 @@ func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (
 
 // 	// Update ride status
 // 	query := `
-// 		UPDATE rides 
+// 		UPDATE rides
 // 		SET status = $1, started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 // 		WHERE id = $2
 // 	`
@@ -254,11 +323,10 @@ func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (
 // 	return s.buildRideResponse(ctx, ride)
 // }
 
-
 // New Logic
 
-func( r *RideService) StartRide(ctx context.Context, driverId , rideID string) (*model.RideResponse,error){
-	 result , err := s.server.DB.Pool.Exec(ctx, `
+func (r *RideService) StartRide(ctx context.Context, driverId, rideID string) (*model.RideResponse, error) {
+	result, err := r.server.DB.Pool.Exec(ctx, `
 	UPDATE rides
 	SET status = @status,
 	started_at = NOW(),
@@ -266,25 +334,31 @@ func( r *RideService) StartRide(ctx context.Context, driverId , rideID string) (
 	WHERE id = @ride_id
 	AND driver_id = @driver_id
 	AND status IN ('accepted' , 'driver_arrived')`,
-    pgx.NamedArgs{
-		"ride_id":rideID,
-		"driver_id":driverId,
-		"status": model.RideStatusInProgress,
-	})
+		pgx.NamedArgs{
+			"ride_id":   rideID,
+			"driver_id": driverId,
+			"status":    model.RideStatusInProgress,
+		})
 
-	if err != nil{
-		return nil,errs.Wrap(err,"failed to start ride")
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to start ride")
 	}
 
-	if result.RowsAffected() == 0{
+	if result.RowsAffected() == 0 {
 		return nil, errs.NewBadRequest("Cannot start ride")
 	}
 
-	return r.repo.Ride.GetByID(ctx,rideID)
+	rideResult, err := r.repo.Ride.GetByID(ctx, rideID)
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to get ride")
+	}
+
+	// Broadcast to Rider
+	resp, _ := r.buildRideResponse(ctx, rideResult)
+	r.server.Hub.BroadcastToUser(rideResult.UserID, "ride_started", resp)
+
+	return resp, nil
 }
-
-
-
 
 // CompleteRide marks a ride as completed
 // func (s *RideService) CompleteRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
@@ -303,7 +377,7 @@ func( r *RideService) StartRide(ctx context.Context, driverId , rideID string) (
 
 // 	// Update ride status
 // 	query := `
-// 		UPDATE rides 
+// 		UPDATE rides
 // 		SET status = $1, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 // 		WHERE id = $2
 // 	`
@@ -324,11 +398,8 @@ func( r *RideService) StartRide(ctx context.Context, driverId , rideID string) (
 // 	return s.buildRideResponse(ctx, ride)
 // }
 
-
-func( r *RideService) CompleteRide( ctx context.Context,driverID ,rideID string,
-
-) (*model.Rideresponse, error){
-	result ,err := s.server.DB.Pool.Exec(ctx,`
+func (r *RideService) CompleteRide(ctx context.Context, driverID, rideID string) (*model.RideResponse, error) {
+	result, err := r.server.DB.Pool.Exec(ctx, `
 	UPDATE rides
 	SET status = @status,
 	completed_at =  NOW(),
@@ -336,23 +407,31 @@ func( r *RideService) CompleteRide( ctx context.Context,driverID ,rideID string,
 	WHERE id = @ride_id 
 	AND driver_id = @driver_id
 	AND status = @in_progress`,
-	pgx.NamedArgs{
-		"ride_id": rideID,
-		"driver_id": driverID,
-		"status": model.RideStatusCompleted,
-		"in_progress": model.RideStatusInProgress,
-	})
+		pgx.NamedArgs{
+			"ride_id":     rideID,
+			"driver_id":   driverID,
+			"status":      model.RideStatusCompleted,
+			"in_progress": model.RideStatusInProgress,
+		})
 
-	if err != nil{
-		return nil, errs.Wrap(err,"failed to complete ride")
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to complete ride")
 	}
-	if result.RowsAffected() == 0{
+	if result.RowsAffected() == 0 {
 		return nil, errs.NewBadRequest("cannot complete ride")
 	}
 
-	return r.repo.Ride.GetByID(ctx,rideID)
-}
+	rideResult, err := r.repo.Ride.GetByID(ctx, rideID)
+	if err != nil {
+		return nil, errs.Wrap(err, "failed to get ride")
+	}
 
+	// Broadcast to Rider
+	resp, _ := r.buildRideResponse(ctx, rideResult)
+	r.server.Hub.BroadcastToUser(rideResult.UserID, "ride_completed", resp)
+
+	return resp, nil
+}
 
 // CancelRide cancels a ride
 func (s *RideService) CancelRide(ctx context.Context, userID, rideID string) error {
@@ -375,10 +454,31 @@ func (s *RideService) CancelRide(ctx context.Context, userID, rideID string) err
 
 	s.server.Logger.Info().Str("ride_id", rideID).Msg("Ride cancelled")
 
-	// TODO: Notify driver if assigned
+	// Remove from Redis Geospatial Index
+	go func() {
+		if err := s.server.Redis.ZRem(context.Background(), "rides:requested", rideID).Err(); err != nil {
+			s.server.Logger.Error().Err(err).Str("ride_id", rideID).Msg("Failed to remove ride from Redis GEO index")
+		}
+	}()
+
+	// Notify driver if assigned
+	if ride.DriverID != nil {
+		driverUUID, err := uuid.Parse(*ride.DriverID)
+		if err == nil {
+			d, err := s.repo.Driver.GetByID(context.Background(), driverUUID)
+			if err == nil && d != nil {
+				// Broadcast to Driver
+				s.server.Hub.BroadcastToUser(d.UserID.String(), "ride_cancelled", ride)
+			}
+		}
+	}
+
+	// Also broadcast update to Rider (themselves) to confirm cancellation state?
+	// s.server.Hub.BroadcastToUser(userID, "ride_cancelled", ride)
 
 	return nil
 }
+
 
 // GetActiveRide gets the active ride for a user or driver
 func (s *RideService) GetActiveRide(ctx context.Context, userID string, isDriver bool) (*model.RideResponse, error) {
@@ -466,7 +566,7 @@ func (s *RideService) buildRideResponse(ctx context.Context, ride *model.Ride) (
 			if err == nil {
 				user, err := s.repo.User.GetByID(ctx, driverUUID)
 				if err == nil {
-					location, _ := s.locationService.GetDriverLocation(ctx, *ride.DriverID)
+					location, _ := s.locationService.GetDriverlocation(ctx, *ride.DriverID)
 					if location == nil {
 						location = &model.Location{Latitude: 0, Longitude: 0}
 					}
@@ -530,4 +630,31 @@ func calculateDistance(from, to model.Location) float64 {
 func calculateFare(distanceKm float64, durationMinutes int) float64 {
 	fare := baseFare + (distanceKm * perKmRate) + (float64(durationMinutes) * perMinuteRate)
 	return math.Round(fare*100) / 100 // Round to 2 decimal places
+}
+
+// GetNearbyRides finds active ride requests near a location
+func (s *RideService) GetNearbyRides(ctx context.Context, lat, lng, radiusKm float64) ([]*model.RideResponse, error) {
+	rides, err := s.repo.Ride.FindNearbyRides(ctx, lat, lng, radiusKm)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []*model.RideResponse
+	for _, ride := range rides {
+		// Create a local copy to avoid closure issues if any (though not applicable here)
+		r := ride
+		resp, err := s.buildRideResponse(ctx, &r)
+		if err != nil {
+			// Log error but continue
+			s.server.Logger.Error().Err(err).Str("ride_id", ride.ID).Msg("Failed to build response for ride")
+			continue
+		}
+		responses = append(responses, resp)
+	}
+
+	return responses, nil
+}
+
+func (s *RideService) GetDriverLocation(ctx context.Context, driverID string) (*model.Location, error) {
+	return s.locationService.GetDriverlocation(ctx, driverID)
 }

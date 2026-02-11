@@ -16,12 +16,21 @@ const UserLogin = () => {
         setLoading(true);
         try {
             const response = await login({ email, password, role: 'rider' });
+            console.log('Login successful:', response.data);
+
+            // Ensure token is present before navigating
             if (response.data?.token) {
                 localStorage.setItem('token', response.data.token);
+                // Small delay to ensure token is saved
+                setTimeout(() => {
+                    navigate('/user/home');
+                }, 100);
+            } else {
+                throw new Error('No token received from server');
             }
-            navigate('/user/home');
         } catch (err) {
-            setError(err.response?.data?.message || err.response?.data?.error || 'Invalid credentials');
+            console.error('Login error:', err);
+            setError(err.response?.data?.message || err.response?.data?.error || err.message || 'Invalid credentials');
         } finally {
             setLoading(false);
         }
@@ -142,7 +151,7 @@ const UserLogin = () => {
 
                         <div className="pt-4 border-t border-gray-800">
                             <Link
-                                to="/captain-login"
+                                to="/driver/login"
                                 className='inline-flex items-center text-sm text-gray-500 hover:text-white transition-colors'
                             >
                                 <span className="mr-2">Are you a driver?</span>

@@ -29,9 +29,17 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             // Clear invalid token
             localStorage.removeItem('token');
-            // Optionally redirect to login
-            if (window.location.pathname !== '/login' && window.location.pathname !== '/captain-login') {
-                window.location.href = '/login';
+            // Redirect to appropriate login page based on current path
+            const currentPath = window.location.pathname;
+            const loginPaths = ['/user/login', '/user/signup', '/driver/login', '/driver/signup', '/captain-login'];
+
+            if (!loginPaths.includes(currentPath)) {
+                // Determine if user or driver based on path
+                if (currentPath.startsWith('/driver/') || currentPath.startsWith('/captain')) {
+                    window.location.href = '/driver/login';
+                } else {
+                    window.location.href = '/user/login';
+                }
             }
         }
         return Promise.reject(error);
@@ -63,10 +71,29 @@ export const updateLocation = async (latitude, longitude, heading = 0, speed = 0
     });
 };
 
-export const findNearbyDrivers = async (latitude, longitude, radiusKm = 5) => {
+
+export const findNearbyDrivers = async (latitude, longitude, radiusKm = 10) => {
     return await api.post('/location/nearby-drivers', {
         location: { latitude, longitude },
         radius_km: radiusKm
+    });
+};
+
+export const getDriverProfile = async () => {
+    return await api.get('/drivers/profile');
+};
+
+export const createDriverProfile = async (data) => {
+    return await api.post('/drivers/profile', data);
+};
+
+export const updateDriverProfile = async (data) => {
+    return await api.put('/drivers/profile', data);
+};
+
+export const getNearbyRides = async (latitude, longitude, radius = 5) => {
+    return await api.get('/drivers/rides/nearby', {
+        params: { latitude, longitude, radius }
     });
 };
 

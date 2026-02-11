@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signup } from '../api';
-
+import { UserContext } from '../context/UserContext';
 const UserSignup = () => {
     const [formData, setFormData] = useState({
         email: '',
@@ -12,6 +12,8 @@ const UserSignup = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+
+    const { user, setUser } = useContext(UserContext);
 
     const handleChange = (e) => {
         setFormData({
@@ -40,7 +42,7 @@ const UserSignup = () => {
     return (
         <div className='min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden'>
             {/* Animated background */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-lime-900/20 via-black to-black"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops)) ] from-lime-900/20 via-black to-black"></div>
 
             {/* Ambient lighting */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">

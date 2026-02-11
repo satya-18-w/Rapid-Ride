@@ -135,7 +135,7 @@ const CaptainLogin = () => {
                     <div className='mt-8 text-center space-y-4'>
                         <p className='text-sm text-gray-400'>
                             Don't have an account?{' '}
-                            <Link to="/captain-signup" className='text-emerald-400 font-semibold hover:text-emerald-300 transition-colors'>
+                            <Link to="/driver/signup" className='text-emerald-400 font-semibold hover:text-emerald-300 transition-colors'>
                                 Sign up to drive
                             </Link>
                         </p>

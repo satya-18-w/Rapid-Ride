@@ -8,6 +8,7 @@ import (
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/handler"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/middleware"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/model"
+	"github.com/satya-18-w/RAPID-RIDE/backend/internal/realtime"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/server"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/service"
 	"golang.org/x/time/rate"
@@ -60,6 +61,7 @@ func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services
 		auth.POST("/otp/send", h.Auth.SendOTP)
 		auth.POST("/otp/verify", h.Auth.VerifyOTP)
 		auth.GET("/me", h.Auth.Me, middlewares.Auth.RequireAuth)
+		auth.GET("/ws", realtime.Handler(s.Hub), middlewares.Auth.RequireAuth)
 	}
 
 	riders := v1.Group("/riders", middlewares.Auth.RequireAuth, middlewares.Auth.RequireRole(model.RoleRider, model.RoleAdmin))
@@ -72,6 +74,9 @@ func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services
 	{
 
 		drivers.POST("/profile", h.Driver.SetupProfile)
+		drivers.PUT("/profile", h.Driver.UpdateProfile)
+		drivers.GET("/profile", h.Driver.GetProfile)
+		drivers.GET("/rides/nearby", h.Ride.GetNearbyRides)
 		drivers.POST("/logout", h.Auth.SignOut)
 	}
 
@@ -101,6 +106,17 @@ func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services
 		rides.POST("/:id/complete", h.Ride.CompleteRide, middlewares.Auth.RequireRole(model.RoleDriver))
 		rides.POST("/:id/cancel", h.Ride.CancelRide)
 		rides.POST("/:id/rate", h.Ride.RateRide, middlewares.Auth.RequireRole(model.RoleRider))
+	}
+
+	// Payment routes
+
+	payments := v1.Group("/payments", middlewares.Auth.RequireAuth)
+	{
+		payments.POST("/create", h.Payment.CreatePaymentOrder, middlewares.Auth.RequireRole(model.RoleRider))
+		payments.POST("/verify", h.Payment.VerifyPayment, middlewares.Auth.RequireRole(model.RoleRider))
+		payments.POST("/cash", h.Payment.ProcessCashPayment, middlewares.Auth.RequireRole(model.RoleRider))
+		payments.POST("/upi", h.Payment.ProcessUPIPayment, middlewares.Auth.RequireRole(model.RoleRider))
+		payments.GET("/ride/:ride_id", h.Payment.GetPaymentByRideID)
 	}
 
 	return router

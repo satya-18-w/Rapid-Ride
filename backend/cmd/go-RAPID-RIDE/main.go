@@ -56,8 +56,12 @@ func main() {
 	repos := repository.NewRepositories(server)
 	services, serviceErr := service.NewServices(server, repos)
 	if serviceErr != nil {
-		log.Fatal().Err(err).Msg("Could not create services")
+		log.Fatal().Err(serviceErr).Msg("Could not create services")
 	}
+
+	// Inject services into WebSocket Hub
+	server.Hub.RideService = services.Ride
+	server.Hub.LocationService = services.Location
 
 	handlers := handler.NewHandlers(server, services)
 

@@ -138,4 +138,33 @@ func (s *LocationService) FindNearbyDrivers(ctx context.Context, req *model.Near
 	return &response, nil
 }
 
-func (s *LocationService) AssignDiverTx(ctx context.Context)
+// SetDriverAvailability sets the availability status of a driver
+func (s *LocationService) SetDriverAvailability(ctx context.Context, driverID string, available bool) error {
+	onlineKey := driverOnlinePrefix + driverID
+	
+	if available {
+		// Set driver as online
+		if err := s.server.Redis.Set(ctx, onlineKey, "1", driverOnlineTTL).Err(); err != nil {
+			return errs.Wrap(err, "failed to set driver availability in redis")
+		}
+		s.server.Logger.Debug().
+			Str("driver_id", driverID).
+			Bool("available", available).
+			Msg("Driver availability updated to online")
+	} else {
+		// Remove driver from online status and geo index
+		if err := s.server.Redis.Del(ctx, onlineKey).Err(); err != nil {
+			return errs.Wrap(err, "failed to remove driver availability in redis")
+		}
+		// Remove from geo index
+		if err := s.server.Redis.ZRem(ctx, driverGeoKey, driverID).Err(); err != nil {
+			return errs.Wrap(err, "failed to remove driver from geo index")
+		}
+		s.server.Logger.Debug().
+			Str("driver_id", driverID).
+			Bool("available", available).
+			Msg("Driver availability updated to offline")
+	}
+
+	return nil
+}

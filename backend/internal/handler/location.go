@@ -57,7 +57,7 @@ func (h *LocationHandler) FindNearbyDrivers(c echo.Context) error {
 
 			return &map[string]interface{}{
 				"drivers": drivers,
-				"count":   len(drivers),
+				"count":   len(*drivers),
 			}, nil
 		},
 		http.StatusOK,

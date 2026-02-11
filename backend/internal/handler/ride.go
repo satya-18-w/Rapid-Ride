@@ -167,3 +167,54 @@ func (h *RideHandler) RateRide(c echo.Context) error {
 		&model.RideRatingRequest{},
 	)(c)
 }
+
+// GetNearbyRides gets nearby available rides for drivers
+func (h *RideHandler) GetNearbyRides(c echo.Context) error {
+	driverID, ok := c.Get("user_id").(string)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "Unauthorized")
+	}
+
+	// Double check role
+	role, _ := c.Get("role").(string)
+	if role != string(model.RoleDriver) && role != string(model.RoleAdmin) {
+		return echo.NewHTTPError(http.StatusForbidden, "Only drivers can see nearby rides")
+	}
+
+	lat := 0.0
+	lng := 0.0
+	radius := 5.0 // km
+
+	type LocationQuery struct {
+		Latitude  float64 `query:"latitude"`
+		Longitude float64 `query:"longitude"`
+		Radius    float64 `query:"radius"`
+	}
+
+	var query LocationQuery
+	if err := c.Bind(&query); err == nil {
+		lat = query.Latitude
+		lng = query.Longitude
+		if query.Radius > 0 {
+			radius = query.Radius
+		}
+	}
+
+	// If lat/lng are 0, try to get from driver's last location
+	if lat == 0 && lng == 0 {
+		loc, err := h.rideService.GetDriverLocation(c.Request().Context(), driverID)
+		if err == nil && loc != nil {
+			lat = loc.Latitude
+			lng = loc.Longitude
+		} else {
+			return echo.NewHTTPError(http.StatusBadRequest, "Location required (latitude/longitude params)")
+		}
+	}
+
+	rides, err := h.rideService.GetNearbyRides(c.Request().Context(), lat, lng, radius)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, rides)
+}

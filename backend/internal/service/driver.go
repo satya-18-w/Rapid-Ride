@@ -61,3 +61,41 @@ func (s *DriverService) CreateProfile(ctx context.Context, userId uuid.UUID, req
 	return driver, nil
 
 }
+
+// UpdateProfile updates a driver's profile
+func (s *DriverService) UpdateProfile(ctx context.Context, userID uuid.UUID, req *driver.CreateDriverRequest) (*driver.Driver, error) {
+	// Check if profile exists
+	existing, err := s.repo.Driver.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, errs.NewNotFoundError("driver profile not found", false, nil)
+	}
+
+	// Update fields
+	existing.VehicleType = req.VehicleType
+	existing.VehicleNumber = req.VehicleNumber
+	existing.Capacity = req.Capacity
+	existing.UpdatedAt = time.Now()
+
+	if err := s.repo.Driver.Update(ctx, existing); err != nil {
+		return nil, err
+	}
+
+	return existing, nil
+}
+
+// GetProfile gets a driver's profile
+func (s *DriverService) GetProfile(ctx context.Context, userID uuid.UUID) (*driver.Driver, error) {
+	driver, err := s.repo.Driver.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if driver == nil {
+		return nil, errs.NewNotFoundError("driver profile not found", false, nil)
+	}
+
+	return driver, nil
+}
+

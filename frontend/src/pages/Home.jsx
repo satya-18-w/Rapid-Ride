@@ -93,8 +93,9 @@ const Home = () => {
                         </div>
                     </button>
 
+
                     <button
-                        onClick={() => navigate('/captain-login')}
+                        onClick={() => navigate('/driver/signup')}
                         className="group relative w-full overflow-hidden rounded-2xl bg-gray-800 border border-gray-700 p-4 transition-all hover:scale-[1.02] hover:border-lime-500/50">
                         <div className="relative z-10 flex items-center justify-between">
                             <div className="text-left">
