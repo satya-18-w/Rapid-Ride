@@ -1,234 +1,147 @@
-import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { searchLocation } from '../api';
 
 const LocationSearchInput = ({
-    value,
+    value = '',
     onChange,
     onLocationSelect,
-    placeholder = "Search location...",
-    label = "Location"
+    placeholder = 'Search for a place',
+    label = '',
+    showCurrentLocation = true,
+    className = '',
 }) => {
-    const [query, setQuery] = useState(value || '');
     const [suggestions, setSuggestions] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const debounceTimer = useRef(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const debounceRef = useRef(null);
+    const inputRef = useRef(null);
     const wrapperRef = useRef(null);
 
-    // Close suggestions when clicking outside
+    // Close on outside click
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-                setShowSuggestions(false);
+        const handleClick = (e) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+                setIsOpen(false);
             }
         };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
     }, []);
 
-    // Fetch suggestions from Nominatim (OpenStreetMap)
-    const fetchSuggestions = async (searchQuery) => {
-        if (!searchQuery || searchQuery.length < 3) {
+    const searchPlaces = useCallback(async (query) => {
+        if (!query || query.length < 3) {
             setSuggestions([]);
+            setIsOpen(false);
             return;
         }
-
-        setLoading(true);
+        setIsLoading(true);
         try {
-            const response = await axios.get('https://nominatim.openstreetmap.org/search', {
-                params: {
-                    q: searchQuery,
-                    format: 'json',
-                    addressdetails: 1,
-                    limit: 5,
-                    countrycodes: 'in' // Restrict to India, remove for worldwide
-                },
-                headers: {
-                    'User-Agent': 'RapidRide/1.0' // Required by Nominatim
-                }
-            });
-
-            setSuggestions(response.data);
-            setShowSuggestions(true);
-        } catch (error) {
-            console.error('Error fetching suggestions:', error);
+            const res = await searchLocation(query);
+            const results = res.data || [];
+            setSuggestions(results.slice(0, 6));
+            setIsOpen(results.length > 0);
+        } catch (err) {
+            console.error('Search error:', err);
             setSuggestions([]);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
-    };
+    }, []);
 
-    // Debounced search
     const handleInputChange = (e) => {
-        const newQuery = e.target.value;
-        setQuery(newQuery);
-        onChange(newQuery);
-
-        // Clear previous timer
-        if (debounceTimer.current) {
-            clearTimeout(debounceTimer.current);
-        }
-
-        // Set new timer
-        debounceTimer.current = setTimeout(() => {
-            fetchSuggestions(newQuery);
-        }, 500); // Wait 500ms after user stops typing
+        const val = e.target.value;
+        onChange(val);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => searchPlaces(val), 500);
     };
 
-    // Handle suggestion selection
-    const handleSuggestionClick = (suggestion) => {
-        const displayName = suggestion.display_name;
+    const handleSelect = (place) => {
         const location = {
-            latitude: parseFloat(suggestion.lat),
-            longitude: parseFloat(suggestion.lon)
+            latitude: parseFloat(place.lat),
+            longitude: parseFloat(place.lon),
         };
-
-        setQuery(displayName);
-        onChange(displayName);
-        onLocationSelect(location, displayName);
-        setShowSuggestions(false);
+        const address = place.display_name;
+        onChange(address);
+        onLocationSelect(location, address);
+        setIsOpen(false);
         setSuggestions([]);
     };
 
-    // Get current location
-    const handleUseCurrentLocation = () => {
+    const handleCurrentLocation = () => {
         if (navigator.geolocation) {
-            setLoading(true);
             navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const location = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    };
-
-                    // Reverse geocode to get address
-                    try {
-                        const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
-                            params: {
-                                lat: location.latitude,
-                                lon: location.longitude,
-                                format: 'json'
-                            },
-                            headers: {
-                                'User-Agent': 'RapidRide/1.0'
-                            }
-                        });
-
-                        const address = response.data.display_name;
-                        setQuery(address);
-                        onChange(address);
-                        onLocationSelect(location, address);
-                    } catch (error) {
-                        console.error('Error reverse geocoding:', error);
-                        const fallbackAddress = `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`;
-                        setQuery(fallbackAddress);
-                        onChange(fallbackAddress);
-                        onLocationSelect(location, fallbackAddress);
-                    } finally {
-                        setLoading(false);
-                    }
+                (pos) => {
+                    const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                    onChange('Current Location');
+                    onLocationSelect(loc, 'Current Location');
+                    setIsOpen(false);
                 },
-                (error) => {
-                    console.error('Error getting location:', error);
-                    setLoading(false);
-                    alert('Unable to get your location. Please enter manually.');
-                }
+                (err) => console.error('Geolocation error:', err)
             );
-        } else {
-            alert('Geolocation is not supported by your browser');
         }
     };
 
     return (
-        <div ref={wrapperRef} className="relative">
-            {label && (
-                <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    {label}
-                </label>
-            )}
+        <div ref={wrapperRef} className={`relative ${className}`}>
+            {label && <label className="block text-xs text-gray-400 mb-1 font-medium uppercase tracking-wider">{label}</label>}
 
             <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
-                    <svg className="h-6 w-6 text-lime-400" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                    </svg>
-                </div>
-
                 <input
+                    ref={inputRef}
                     type="text"
-                    value={query}
+                    value={value}
                     onChange={handleInputChange}
-                    onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                    className="w-full pl-14 pr-14 py-4 bg-white/10 backdrop-blur-md border-2 border-lime-500/50 text-white placeholder-gray-300 rounded-2xl focus:ring-4 focus:ring-lime-500/30 focus:border-lime-400 transition-all shadow-xl hover:border-lime-400/70 hover:bg-white/15 font-medium text-base"
+                    onFocus={() => { if (suggestions.length > 0) setIsOpen(true); }}
                     placeholder={placeholder}
+                    className="w-full bg-white/5 border border-gray-700/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-lime-500/60 focus:bg-white/8 transition-all"
                 />
-
-                <button
-                    type="button"
-                    onClick={handleUseCurrentLocation}
-                    disabled={loading}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-lime-400 hover:text-lime-300 disabled:opacity-50 transition-colors z-10 hover:scale-110"
-                    title="Use current location"
-                >
-                    {loading ? (
-                        <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
+                {isLoading && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <svg className="animate-spin w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                    ) : (
-                        <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z" />
-                        </svg>
-                    )}
-                </button>
+                    </div>
+                )}
             </div>
 
             {/* Suggestions Dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-3 bg-gray-900/98 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-lime-500/30 max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-lime-500 scrollbar-track-gray-800">
-                    {suggestions.map((suggestion, index) => (
+            {isOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[#111] border border-gray-700 rounded-xl overflow-hidden z-50 shadow-2xl shadow-black/50 max-h-56 overflow-y-auto scrollbar-thin animate-fade-in">
+                    {showCurrentLocation && (
                         <button
-                            key={suggestion.place_id || index}
-                            type="button"
-                            onClick={() => handleSuggestionClick(suggestion)}
-                            className="w-full text-left px-5 py-4 hover:bg-lime-500/20 transition-all border-b border-gray-700/50 last:border-b-0 focus:outline-none focus:bg-lime-500/30 group"
+                            onClick={handleCurrentLocation}
+                            className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-gray-800"
                         >
-                            <div className="flex items-start">
-                                <svg className="h-5 w-5 text-lime-400 mr-3 mt-0.5 flex-shrink-0 group-hover:text-lime-300" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                 </svg>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-white truncate group-hover:text-lime-300">
-                                        {suggestion.display_name.split(',')[0]}
-                                    </p>
-                                    <p className="text-xs text-gray-300 truncate mt-0.5 group-hover:text-gray-200">
-                                        {suggestion.display_name}
-                                    </p>
-                                </div>
+                            </div>
+                            <div>
+                                <p className="text-sm text-blue-400 font-medium">Use Current Location</p>
+                                <p className="text-[10px] text-gray-500">GPS location</p>
+                            </div>
+                        </button>
+                    )}
+                    {suggestions.map((place, i) => (
+                        <button
+                            key={place.place_id || i}
+                            onClick={() => handleSelect(place)}
+                            className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-white/5 transition-colors text-left border-b border-gray-800/50 last:border-b-0"
+                        >
+                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm text-white truncate">{place.display_name?.split(',')[0]}</p>
+                                <p className="text-[10px] text-gray-500 truncate">{place.display_name?.split(',').slice(1).join(',').trim()}</p>
                             </div>
                         </button>
                     ))}
-                </div>
-            )}
-
-            {/* Loading indicator */}
-            {loading && query.length >= 3 && (
-                <div className="absolute z-50 w-full mt-3 bg-gray-900/98 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-lime-500/30 px-5 py-4">
-                    <div className="flex items-center text-lime-400">
-                        <svg className="animate-spin h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span className="text-sm font-medium">Searching locations...</span>
-                    </div>
-                </div>
-            )}
-
-            {/* No results */}
-            {showSuggestions && !loading && query.length >= 3 && suggestions.length === 0 && (
-                <div className="absolute z-50 w-full mt-3 bg-gray-900/98 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-lime-500/30 px-5 py-4">
-                    <p className="text-sm text-gray-200 font-medium">📍 No locations found. Try a different search.</p>
                 </div>
             )}
         </div>

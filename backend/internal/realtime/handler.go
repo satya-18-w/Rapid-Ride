@@ -30,7 +30,7 @@ func Handler(hub *Hub) echo.HandlerFunc {
 			userID: uid,
 			logger: hub.Logger.With().Str("component", "websocket_client").Logger(),
 		}
-		client.hub.register <- client
+		client.hub.Register <- client
 
 		// Allow collection of memory referenced by the caller by doing all work in
 		// new goroutines.

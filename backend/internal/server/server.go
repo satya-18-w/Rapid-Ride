@@ -62,7 +62,7 @@ func New(cfg *config.Config, logger *zerolog.Logger, loggerservice *loggerpkg.Lo
 		return nil, err
 	}
 	// WebSocket Hub
-	hub := realtime.NewHub(*logger)
+	hub := realtime.NewHub(logger)
 	go hub.Run()
 
 	server := &Server{

@@ -25,6 +25,7 @@ const (
 	defaultNearbyDriverLimit = 20
 )
 
+
 type LocationService struct {
 	server *server.Server
 	repo   *repository.Repositories

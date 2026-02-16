@@ -13,6 +13,7 @@ type Handlers struct {
 	Location *LocationHandler
 	Ride     *RideHandler
 	Payment  *PaymentHandler
+	Map      *MapHandler
 }
 
 func NewHandlers(s *server.Server, services *service.Services) *Handlers {
@@ -24,5 +25,6 @@ func NewHandlers(s *server.Server, services *service.Services) *Handlers {
 		Location: NewLocationHandler(s, services.Location),
 		Ride:     NewRideHandler(s, services.Ride),
 		Payment:  NewPaymentHandler(services.Payment),
+		Map:      NewMapHandler(s),
 	}
 }

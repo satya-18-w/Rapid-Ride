@@ -12,7 +12,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
+
 	"github.com/newrelic/go-agent/v3/integrations/nrpgx5"
+
 	"github.com/rs/zerolog"
 	"github.com/satya-18-w/RAPID-RIDE/backend/internal/config"
 	loggerConfig "github.com/satya-18-w/RAPID-RIDE/backend/internal/logger"

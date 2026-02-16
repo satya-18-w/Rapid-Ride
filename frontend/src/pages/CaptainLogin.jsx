@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../api';
 
+
+
 const CaptainLogin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -51,7 +53,7 @@ const CaptainLogin = () => {
 
                     {/* Logo */}
                     <div className='mb-8 text-center'>
-                        <div className='inline-block p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl mb-4 shadow-lg shadow-emerald-500/20'>
+                        <div className='inline-block p-3 bg-linear-to-br from-emerald-500 to-teal-600 rounded-2xl mb-4 shadow-lg shadow-emerald-500/20'>
                             <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
@@ -59,7 +61,6 @@ const CaptainLogin = () => {
                         <h1 className='text-3xl font-bold text-white mb-2'>Captain Login</h1>
                         <p className='text-gray-400 text-sm'>Enter your credentials to continue</p>
                     </div>
-
                     {error && (
                         <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded-xl mb-6 flex items-center backdrop-blur-sm">
                             <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">

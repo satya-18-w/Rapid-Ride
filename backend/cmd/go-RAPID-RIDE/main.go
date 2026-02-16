@@ -22,10 +22,10 @@ import (
 const DefaultContextTimeout = 30
 
 func main() {
-	// Load .env file
+
 	_ = godotenv.Load()
 
-	// Loading the configfile
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic("failed to load the config" + err.Error())
@@ -59,17 +59,16 @@ func main() {
 		log.Fatal().Err(serviceErr).Msg("Could not create services")
 	}
 
-	// Inject services into WebSocket Hub
+
 	server.Hub.RideService = services.Ride
 	server.Hub.LocationService = services.Location
 
 	handlers := handler.NewHandlers(server, services)
 
-	// Initialize router
 
 	r := router.NewRouter(server, handlers, services)
 
-	// setup  HTTP Server
+
 	server.SetupHTTPServer(r)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)

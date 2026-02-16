@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -94,6 +95,8 @@ func (r *RideService) CreateRideRequest(ctx context.Context, userID string, req 
 		DropoffLocation: req.DropoffLocation,
 		DropoffAddress:  req.DropoffAddress,
 		Status:          model.RideStatusRequested,
+		VehicleType:     &req.VehicleType,
+		PaymentMethod:   &req.PaymentMethod,
 		Fare:            &fare,
 		DistanceKm:      &dist,
 		DurationMinutes: &estimatedTime,
@@ -124,7 +127,51 @@ func (r *RideService) CreateRideRequest(ctx context.Context, userID string, req 
 		}
 	}()
 
-	return r.buildRideResponse(ctx, ride)
+	resp, err := r.buildRideResponse(ctx, ride)
+	if err != nil {
+		return nil, err
+	}
+
+	// Broadcast new ride request to all nearby online drivers
+	go func() {
+		bgCtx := context.Background()
+		// Find drivers within 10km of pickup
+		nearbyDrivers, err := r.server.Redis.GeoRadius(bgCtx,
+			"drivers:geo",
+			ride.PickupLocation.Longitude,
+			ride.PickupLocation.Latitude,
+			&redis.GeoRadiusQuery{
+				Radius:    10,
+				Unit:      "km",
+				Count:     50,
+				Sort:      "ASC",
+				WithCoord: true,
+				WithDist:  true,
+			},
+		).Result()
+		if err != nil {
+			r.server.Logger.Error().Err(err).Msg("Failed to find nearby drivers for broadcast")
+			return
+		}
+
+		for _, driver := range nearbyDrivers {
+			// Check if driver is online
+			onlineKey := "driver:online:" + driver.Name
+			exists, err := r.server.Redis.Get(bgCtx, onlineKey).Result()
+			if err != nil || exists == "" {
+				continue
+			}
+
+			// driver.Name is the user_id (set by WebSocket handler)
+			r.server.Hub.BroadcastToUser(driver.Name, "new_ride_request", resp)
+		}
+		r.server.Logger.Info().
+			Int("nearby_drivers", len(nearbyDrivers)).
+			Str("ride_id", ride.ID).
+			Msg("Broadcasted ride request to nearby drivers")
+	}()
+
+	return resp, nil
 
 }
 
@@ -217,12 +264,15 @@ func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (
 		return nil, errs.NewBadRequest("driver already has an active ride")
 	}
 
-	// Update ride status
+	// Generate 4-digit OTP for ride verification
+	otp := fmt.Sprintf("%04d", rand.Intn(9000)+1000)
 
+	// Update ride status with OTP
 	_, err = tx.Exec(ctx, `
 	UPDATE rides
 	SET driver_id = @driver_id,
 	status = @status,
+	otp = @otp,
 	accepted_at = NOW(),
 	updated_at = NOW()
 	WHERE id = @ride_id`,
@@ -230,6 +280,7 @@ func (r *RideService) AcceptRide(ctx context.Context, driverId, rideID string) (
 			"ride_id":   rideID,
 			"driver_id": actualDriverID,
 			"status":    string(model.RideStatusAccepted),
+			"otp":       otp,
 		})
 
 	if err != nil {
@@ -274,7 +325,7 @@ func (r *RideService) StartRideWithOTP(ctx context.Context, driverID, rideID, ot
 	}
 
 	// Verify OTP
-	if ride.OTP != otp {
+	if ride.OTP == nil || *ride.OTP != otp {
 		return nil, errs.NewBadRequest("invalid OTP")
 	}
 
@@ -479,7 +530,6 @@ func (s *RideService) CancelRide(ctx context.Context, userID, rideID string) err
 	return nil
 }
 
-
 // GetActiveRide gets the active ride for a user or driver
 func (s *RideService) GetActiveRide(ctx context.Context, userID string, isDriver bool) (*model.RideResponse, error) {
 	var ride *model.Ride
@@ -555,6 +605,16 @@ func (s *RideService) buildRideResponse(ctx context.Context, ride *model.Ride) (
 		PaymentStatus:   ride.PaymentStatus,
 		Rating:          ride.Rating,
 		Feedback:        ride.Feedback,
+	}
+
+	if ride.VehicleType != nil {
+		response.VehicleType = *ride.VehicleType
+	}
+	if ride.PaymentMethod != nil {
+		response.PaymentMethod = *ride.PaymentMethod
+	}
+	if ride.OTP != nil {
+		response.OTP = *ride.OTP
 	}
 
 	// Add driver info if assigned

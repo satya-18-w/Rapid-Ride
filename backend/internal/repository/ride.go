@@ -104,7 +104,7 @@ func (r *RideRepository) GetByID(ctx context.Context, rideID string) (*model.Rid
 	ST_Y(dropoff_location::geometry) as dropoff_lat,
 	ST_X(dropoff_location::geometry) as dropoff_lng,
 	dropoff_address,
-	status,fare,distance_km,duration_minutes,
+	status,vehicle_type,payment_method,otp,fare,distance_km,duration_minutes,
 	requested_at,accepted_at,started_at,completed_at,
 	payment_status,payment_id,rating,feedback,
 	created_at,updated_at
@@ -119,7 +119,7 @@ func (r *RideRepository) GetByID(ctx context.Context, rideID string) (*model.Rid
 		&ride.ID, &ride.UserID, &ride.DriverID,
 		&pickupLat, &pickupLng, &ride.PickupAddress,
 		&dropoffLat, &dropoffLng, &ride.DropoffAddress,
-		&ride.Status, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
+		&ride.Status, &ride.VehicleType, &ride.PaymentMethod, &ride.OTP, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
 		&ride.RequestedAt, &ride.AcceptedAt, &ride.StartedAt, &ride.CompletedAt,
 		&ride.PaymentStatus, &ride.PaymentID, &ride.Rating, &ride.Feedback,
 		&ride.CreatedAt, &ride.UpdatedAt,
@@ -210,7 +210,7 @@ func (r *RideRepository) GetActiveRideForUser(ctx context.Context, userID string
 			ST_Y(dropoff_location::geometry) as dropoff_lat,
 			ST_X(dropoff_location::geometry) as dropoff_lng,
 			dropoff_address,
-			status, fare, distance_km, duration_minutes,
+			status, vehicle_type, payment_method, otp, fare, distance_km, duration_minutes,
 			requested_at, accepted_at, started_at, completed_at,
 			payment_status, payment_id, rating, feedback,
 			created_at, updated_at
@@ -234,7 +234,7 @@ func (r *RideRepository) GetActiveRideForUser(ctx context.Context, userID string
 		&ride.ID, &ride.UserID, &ride.DriverID,
 		&pickupLat, &pickupLng, &ride.PickupAddress,
 		&dropoffLat, &dropoffLng, &ride.DropoffAddress,
-		&ride.Status, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
+		&ride.Status, &ride.VehicleType, &ride.PaymentMethod, &ride.OTP, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
 		&ride.RequestedAt, &ride.AcceptedAt, &ride.StartedAt, &ride.CompletedAt,
 		&ride.PaymentStatus, &ride.PaymentID, &ride.Rating, &ride.Feedback,
 		&ride.CreatedAt, &ride.UpdatedAt,
@@ -261,7 +261,7 @@ func (r *RideRepository) GetActiveRideForDriver(ctx context.Context, driverID st
 			ST_Y(dropoff_location::geometry) as dropoff_lat,
 			ST_X(dropoff_location::geometry) as dropoff_lng,
 			dropoff_address,
-			status, fare, distance_km, duration_minutes,
+			status, vehicle_type, payment_method, otp, fare, distance_km, duration_minutes,
 			requested_at, accepted_at, started_at, completed_at,
 			payment_status, payment_id, rating, feedback,
 			created_at, updated_at
@@ -284,7 +284,7 @@ func (r *RideRepository) GetActiveRideForDriver(ctx context.Context, driverID st
 		&ride.ID, &ride.UserID, &ride.DriverID,
 		&pickupLat, &pickupLng, &ride.PickupAddress,
 		&dropoffLat, &dropoffLng, &ride.DropoffAddress,
-		&ride.Status, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
+		&ride.Status, &ride.VehicleType, &ride.PaymentMethod, &ride.OTP, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
 		&ride.RequestedAt, &ride.AcceptedAt, &ride.StartedAt, &ride.CompletedAt,
 		&ride.PaymentStatus, &ride.PaymentID, &ride.Rating, &ride.Feedback,
 		&ride.CreatedAt, &ride.UpdatedAt,
@@ -332,7 +332,7 @@ func (r *RideRepository) FindNearbyRides(ctx context.Context, lat, lng, radiusKm
 				ST_Y(dropoff_location::geometry) as dropoff_lat,
 				ST_X(dropoff_location::geometry) as dropoff_lng,
 				dropoff_address,
-				status, fare, distance_km, duration_minutes,
+				status, vehicle_type, payment_method, otp, fare, distance_km, duration_minutes,
 				requested_at, accepted_at, started_at, completed_at,
 				payment_status, payment_id, rating, feedback,
 				created_at, updated_at
@@ -342,9 +342,6 @@ func (r *RideRepository) FindNearbyRides(ctx context.Context, lat, lng, radiusKm
 
 		rows, err := r.server.DB.Pool.Query(ctx, query, rideIDs, model.RideStatusRequested)
 		if err != nil {
-			// If DB fetch fails, we can either return error or fallback to full text search
-			// For now, let's fallback to PostGIS search if this fails, or return error?
-			// Let's log and fallback to be safe
 			r.server.Logger.Error().Err(err).Msg("Failed to fetch rides by IDs from Redis result, falling back to PostGIS")
 			goto Fallback
 		}
@@ -359,7 +356,7 @@ func (r *RideRepository) FindNearbyRides(ctx context.Context, lat, lng, radiusKm
 				&ride.ID, &ride.UserID, &ride.DriverID,
 				&pickupLat, &pickupLng, &ride.PickupAddress,
 				&dropoffLat, &dropoffLng, &ride.DropoffAddress,
-				&ride.Status, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
+				&ride.Status, &ride.VehicleType, &ride.PaymentMethod, &ride.OTP, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
 				&ride.RequestedAt, &ride.AcceptedAt, &ride.StartedAt, &ride.CompletedAt,
 				&ride.PaymentStatus, &ride.PaymentID, &ride.Rating, &ride.Feedback,
 				&ride.CreatedAt, &ride.UpdatedAt,
@@ -389,7 +386,7 @@ Fallback:
 			ST_Y(dropoff_location::geometry) as dropoff_lat,
 			ST_X(dropoff_location::geometry) as dropoff_lng,
 			dropoff_address,
-			status, fare, distance_km, duration_minutes,
+			status, vehicle_type, payment_method, otp, fare, distance_km, duration_minutes,
 			requested_at, accepted_at, started_at, completed_at,
 			payment_status, payment_id, rating, feedback,
 			created_at, updated_at
@@ -423,7 +420,7 @@ Fallback:
 			&ride.ID, &ride.UserID, &ride.DriverID,
 			&pickupLat, &pickupLng, &ride.PickupAddress,
 			&dropoffLat, &dropoffLng, &ride.DropoffAddress,
-			&ride.Status, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
+			&ride.Status, &ride.VehicleType, &ride.PaymentMethod, &ride.OTP, &ride.Fare, &ride.DistanceKm, &ride.DurationMinutes,
 			&ride.RequestedAt, &ride.AcceptedAt, &ride.StartedAt, &ride.CompletedAt,
 			&ride.PaymentStatus, &ride.PaymentID, &ride.Rating, &ride.Feedback,
 			&ride.CreatedAt, &ride.UpdatedAt,

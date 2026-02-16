@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signup } from '../api';
-import { UserContext } from '../context/UserContext';
+import UserContext from '../context/UserContext';
 const UserSignup = () => {
     const [formData, setFormData] = useState({
         email: '',

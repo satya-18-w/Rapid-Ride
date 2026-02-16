@@ -29,7 +29,7 @@ const CaptainSignup = () => {
             if (response.data?.token) {
                 localStorage.setItem('token', response.data.token);
             }
-            navigate('/driver/dashboard');
+            navigate('/captain-details');
         } catch (err) {
             setError(err.response?.data?.message || 'Signup failed');
         } finally {
@@ -40,7 +40,7 @@ const CaptainSignup = () => {
     return (
         <div className='min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden'>
             {/* Animated background */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from- emerald-900/20 via-black to-black"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from- emerald-900/20 via-black to-black"></div>
 
             {/* Ambient lighting */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
@@ -49,17 +49,17 @@ const CaptainSignup = () => {
             </div>
 
             <div className='w-full max-w-md relative z-10'>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-3xl blur-xl"></div>
+                <div className="absolute inset-0 bg-linear-to-r from-emerald-500/10 to-teal-500/10 rounded-3xl blur-xl"></div>
                 <div className='relative bg-gray-900/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-gray-800/50'>
                     {/* Logo and Header */}
                     <div className='text-center mb-8'>
-                        <div className='inline-block p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl mb-4 shadow-lg shadow-emerald-500/20 transform hover:scale-105 transition-transform'>
+                        <div className='inline-block p-3 bg-linear-to-br from-emerald-500 to-teal-600 rounded-2xl mb-4 shadow-lg shadow-emerald-500/20 transform hover:scale-105 transition-transform'>
                             <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
                         </div>
                         <h1 className='text-3xl font-bold text-white mb-2'>
-                            Captain <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">Portal</span>
+                            Captain <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-400 to-teal-500">Portal</span>
                         </h1>
                         <p className='text-gray-400 text-sm'>Join our fleet of premium drivers</p>
                     </div>
@@ -138,7 +138,7 @@ const CaptainSignup = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className='w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold py-3.5 px-4 rounded-xl hover:shadow-lg hover:shadow-emerald-500/25 transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4'
+                            className='w-full bg-linear-to-r from-emerald-500 to-teal-600 text-white font-bold py-3.5 px-4 rounded-xl hover:shadow-lg hover:shadow-emerald-500/25 transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4'
                         >
                             {loading ? (
                                 <span className="flex items-center justify-center">

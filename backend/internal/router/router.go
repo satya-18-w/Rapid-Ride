@@ -96,6 +96,14 @@ func NewRouter(s *server.Server, h *handler.Handlers, services *service.Services
 	// Public location search (for users to find nearby drivers)
 	v1.POST("/location/nearby-drivers", h.Location.FindNearbyDrivers, middlewares.Auth.RequireAuth)
 
+	// Map proxy routes
+	maps := v1.Group("/maps", middlewares.Auth.RequireAuth)
+	{
+		maps.GET("/search", h.Map.SearchLocation)
+		maps.GET("/reverse", h.Map.ReverseGeocode)
+		maps.GET("/route", h.Map.GetRoute)
+	}
+
 	// Ride routes
 	rides := v1.Group("/rides", middlewares.Auth.RequireAuth)
 	{

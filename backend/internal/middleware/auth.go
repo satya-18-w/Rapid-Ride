@@ -100,12 +100,7 @@ func (m *AuthMiddleware) RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
+
 
 // RequireRole validates that the authenticated user has one of the specified roles
 func (m *AuthMiddleware) RequireRole(roles ...model.UserRole) echo.MiddlewareFunc {

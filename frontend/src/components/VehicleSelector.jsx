@@ -1,128 +1,138 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-const VehicleSelector = ({ onSelect, selectedVehicle, distance = 5 }) => {
-    const vehicles = [
-        {
-            id: 'bike',
-            name: 'Bike',
-            icon: '🏍️',
-            description: 'Affordable rides',
-            capacity: '1 person',
-            basePrice: 30,
-            pricePerKm: 8,
-            eta: '2-3 min',
-            color: 'from-yellow-500 to-orange-500'
-        },
-        {
-            id: 'auto',
-            name: '3 Wheeler',
-            icon: '🛺',
-            description: 'Budget friendly',
-            capacity: '3 people',
-            basePrice: 50,
-            pricePerKm: 12,
-            eta: '3-5 min',
-            color: 'from-green-500 to-emerald-500'
-        },
-        {
-            id: 'sedan',
-            name: 'Sedan',
-            icon: '🚗',
-            description: 'Comfortable rides',
-            capacity: '4 people',
-            basePrice: 80,
-            pricePerKm: 15,
-            eta: '4-6 min',
-            color: 'from-blue-500 to-purple-500'
-        },
-        {
-            id: 'suv',
-            name: 'SUV',
-            icon: '🚙',
-            description: 'Premium comfort',
-            capacity: '6 people',
-            basePrice: 120,
-            pricePerKm: 20,
-            eta: '5-7 min',
-            color: 'from-purple-500 to-pink-500'
-        }
-    ];
+const vehicleTypes = [
+    {
+        id: 'bike',
+        name: 'Bike',
+        icon: '🏍️',
+        capacity: 1,
+        basePrice: 25,
+        pricePerKm: 7,
+        eta: '3-5',
+        desc: 'Quick & affordable',
+        color: 'emerald',
+        recommended: false,
+    },
+    {
+        id: 'auto',
+        name: 'Auto',
+        icon: '🛺',
+        capacity: 3,
+        basePrice: 30,
+        pricePerKm: 10,
+        eta: '4-6',
+        desc: 'Convenient for short trips',
+        color: 'amber',
+        recommended: false,
+    },
+    {
+        id: 'sedan',
+        name: 'Sedan',
+        icon: '🚗',
+        capacity: 4,
+        basePrice: 50,
+        pricePerKm: 14,
+        eta: '5-8',
+        desc: 'Comfortable & spacious',
+        color: 'blue',
+        recommended: true,
+    },
+    {
+        id: 'suv',
+        name: 'SUV',
+        icon: '🚙',
+        capacity: 6,
+        basePrice: 80,
+        pricePerKm: 18,
+        eta: '6-10',
+        desc: 'Premium ride for groups',
+        color: 'purple',
+        recommended: false,
+    },
+];
 
-    const calculatePrice = (vehicle) => {
-        return vehicle.basePrice + (vehicle.pricePerKm * distance);
-    };
+const colorClasses = {
+    emerald: {
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500',
+        text: 'text-emerald-400',
+        shadow: 'shadow-emerald-500/20',
+    },
+    amber: {
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500',
+        text: 'text-amber-400',
+        shadow: 'shadow-amber-500/20',
+    },
+    blue: {
+        bg: 'bg-blue-500/10',
+        border: 'border-blue-500',
+        text: 'text-blue-400',
+        shadow: 'shadow-blue-500/20',
+    },
+    purple: {
+        bg: 'bg-purple-500/10',
+        border: 'border-purple-500',
+        text: 'text-purple-400',
+        shadow: 'shadow-purple-500/20',
+    },
+};
 
+const VehicleSelector = ({ onSelect, selectedVehicle, distance = 0 }) => {
     return (
-        <div className="space-y-3">
-            <h3 className="text-lg font-bold text-white mb-4">Select Vehicle Type</h3>
-            {vehicles.map((vehicle) => {
-                const price = calculatePrice(vehicle);
+        <div className="space-y-2">
+            {vehicleTypes.map((vehicle, index) => {
+                const total = Math.round(vehicle.basePrice + vehicle.pricePerKm * distance);
                 const isSelected = selectedVehicle?.id === vehicle.id;
+                const colors = colorClasses[vehicle.color];
 
                 return (
-                    <div
+                    <button
                         key={vehicle.id}
                         onClick={() => onSelect(vehicle)}
-                        className={`relative overflow-hidden cursor-pointer transition-all duration-300 transform ${isSelected
-                                ? 'scale-105 shadow-2xl shadow-lime-500/50'
-                                : 'hover:scale-102 hover:shadow-xl'
+                        className={`w-full flex items-center p-3.5 rounded-2xl transition-all duration-200 animate-fade-in-up relative
+                            ${isSelected
+                                ? `${colors.bg} border-2 ${colors.border} shadow-lg ${colors.shadow}`
+                                : 'bg-white/5 border-2 border-transparent hover:bg-white/8 hover:border-gray-700'
                             }`}
+                        style={{ animationDelay: `${index * 0.05}s` }}
                     >
-                        <div className={`bg-gradient-to-r ${vehicle.color} p-[2px] rounded-2xl ${isSelected ? 'animate-pulse' : ''
-                            }`}>
-                            <div className="bg-gray-900/95 backdrop-blur-xl rounded-2xl p-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-4">
-                                        {/* Vehicle Icon */}
-                                        <div className="text-5xl transform transition-transform hover:scale-110">
-                                            {vehicle.icon}
-                                        </div>
+                        {/* Recommended badge */}
+                        {vehicle.recommended && (
+                            <div className="absolute -top-2 right-3 bg-lime-500 text-black text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Popular
+                            </div>
+                        )}
 
-                                        {/* Vehicle Info */}
-                                        <div className="flex-1">
-                                            <div className="flex items-center space-x-2">
-                                                <h4 className="text-xl font-bold text-white">{vehicle.name}</h4>
-                                                {isSelected && (
-                                                    <span className="text-lime-400 text-xl">✓</span>
-                                                )}
-                                            </div>
-                                            <p className="text-gray-400 text-sm">{vehicle.description}</p>
-                                            <div className="flex items-center space-x-4 mt-2">
-                                                <span className="text-gray-500 text-xs flex items-center">
-                                                    <span className="mr-1">👤</span> {vehicle.capacity}
-                                                </span>
-                                                <span className="text-gray-500 text-xs flex items-center">
-                                                    <span className="mr-1">⏱️</span> {vehicle.eta}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
+                        {/* Icon */}
+                        <div className={`w-12 h-12 rounded-xl ${isSelected ? colors.bg : 'bg-white/5'} flex items-center justify-center text-2xl mr-3 flex-shrink-0`}>
+                            {vehicle.icon}
+                        </div>
 
-                                    {/* Price */}
-                                    <div className="text-right">
-                                        <div className="text-2xl font-bold text-lime-400">
-                                            ₹{price.toFixed(0)}
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                            {distance.toFixed(1)} km
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Selected Indicator */}
-                                {isSelected && (
-                                    <div className="mt-3 pt-3 border-t border-gray-800">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span className="text-gray-400">Selected</span>
-                                            <span className="text-lime-400 font-semibold animate-pulse">
-                                                Ready to book →
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
+                        {/* Info */}
+                        <div className="flex-1 text-left min-w-0">
+                            <div className="flex items-center justify-between">
+                                <p className={`font-bold ${isSelected ? colors.text : 'text-white'}`}>{vehicle.name}</p>
+                                <p className={`font-bold text-lg ${isSelected ? colors.text : 'text-white'}`}>₹{total}</p>
+                            </div>
+                            <div className="flex items-center justify-between mt-0.5">
+                                <p className="text-xs text-gray-500">{vehicle.desc}</p>
+                                <p className="text-xs text-gray-500">{vehicle.eta} min</p>
+                            </div>
+                            <div className="flex items-center mt-1 text-[10px] text-gray-500 space-x-3">
+                                <span>👤 {vehicle.capacity}</span>
                             </div>
                         </div>
-                    </div>
+
+                        {/* Selected indicator */}
+                        {isSelected && (
+                            <div className={`ml-2 w-6 h-6 rounded-full ${colors.bg} ${colors.border} border-2 flex items-center justify-center flex-shrink-0`}>
+                                <svg className={`w-3.5 h-3.5 ${colors.text}`} fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                                </svg>
+                            </div>
+                        )}
+                    </button>
                 );
             })}
         </div>

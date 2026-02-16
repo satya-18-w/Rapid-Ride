@@ -54,6 +54,10 @@ export const verifyOTP = async (email, otp, role) => {
     return await api.post('/auth/otp/verify', { email, otp, role });
 };
 
+export const getUserProfile = async () => {
+    return await api.get('/auth/me');
+}
+
 export const signup = async (data) => {
     return await api.post('/auth/signup', data);
 };
@@ -101,6 +105,19 @@ export const setDriverAvailability = async (available) => {
     return await api.post('/location/availability', { available });
 };
 
+// Map APIs
+export const searchLocation = async (query) => {
+    return await api.get('/maps/search', {
+        params: { q: query }
+    });
+};
+
+export const reverseGeocode = async (latitude, longitude) => {
+    return await api.get('/maps/reverse', {
+        params: { lat: latitude, lon: longitude }
+    });
+};
+
 // Ride APIs
 export const createRide = async (pickupLocation, pickupAddress, dropoffLocation, dropoffAddress, vehicleType = 'sedan', paymentMethod = 'cash') => {
     return await api.post('/rides', {
@@ -112,6 +129,7 @@ export const createRide = async (pickupLocation, pickupAddress, dropoffLocation,
         payment_method: paymentMethod
     });
 };
+
 
 export const getActiveRide = async () => {
     return await api.get('/rides/active');
@@ -173,3 +191,5 @@ export const getPaymentByRideId = async (rideId) => {
 };
 
 export default api;
+
+

@@ -1,126 +1,129 @@
-import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import FuturisticMap from '../components/FuturisticMap'
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import FuturisticMap from '../components/FuturisticMap';
+import { findNearbyDrivers } from '../api';
 
 const Home = () => {
     const navigate = useNavigate();
-    const [userLocation, setUserLocation] = useState(null);
     const [nearbyDrivers, setNearbyDrivers] = useState([]);
+    const [location, setLocation] = useState({ latitude: 28.6139, longitude: 77.2090 });
 
     useEffect(() => {
         // Get user location
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude, longitude } = position.coords;
-                    setUserLocation({ latitude, longitude });
-
-                    // Simulate nearby drivers based on user location
-                    const steps = [
-                        { lat_offset: 0.002, lng_offset: 0.003 },
-                        { lat_offset: -0.002, lng_offset: 0.004 },
-                        { lat_offset: 0.001, lng_offset: -0.003 },
-                    ];
-                    setNearbyDrivers(steps.map(s => ({
-                        latitude: latitude + s.lat_offset,
-                        longitude: longitude + s.lng_offset
-                    })));
-                },
-                () => {
-                    // Default location (Delhi) if permission denied
-                    setUserLocation({ latitude: 28.6139, longitude: 77.2090 });
-                }
+                (pos) => setLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                () => { /* use default */ }
             );
         }
     }, []);
 
+    useEffect(() => {
+        const fetchDrivers = async () => {
+            try {
+                const res = await findNearbyDrivers(location.latitude, location.longitude);
+                if (res.data?.drivers) {
+                    setNearbyDrivers(
+                        res.data.drivers
+                            .filter(d => d.latitude && d.longitude)
+                            .map(d => ({
+                                latitude: d.latitude,
+                                longitude: d.longitude,
+                                id: d.id,
+                                vehicleType: d.vehicle_type || 'car'
+                            }))
+                    );
+                }
+            } catch (e) { /* ignore */ }
+        };
+        fetchDrivers();
+        const iv = setInterval(fetchDrivers, 15000);
+        return () => clearInterval(iv);
+    }, [location]);
+
     return (
-        <div className='h-screen w-full bg-black relative overflow-hidden flex flex-col'>
-            {/* Map Background */}
-            <div className="absolute inset-0 z-0">
+        <div className="h-screen w-full bg-[#0a0a0a] relative overflow-hidden">
+            {/* Background Map */}
+            <div className="absolute inset-0 z-0 opacity-70">
                 <FuturisticMap
-                    center={userLocation ? [userLocation.latitude, userLocation.longitude] : [28.6139, 77.2090]}
-                    userLocation={userLocation}
+                    center={[location.latitude, location.longitude]}
                     nearbyDrivers={nearbyDrivers}
-                    zoom={15}
+                    zoom={14}
+                    showGradientOverlay={false}
                 />
             </div>
 
-            {/* Overlays */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90 pointer-events-none z-10"></div>
+            {/* Overlay gradient */}
+            <div className="absolute inset-0 z-10 bg-linear-to-b from-black/70 via-transparent to-black/90"></div>
 
-            {/* Header Content */}
-            <div className="relative z-20 px-6 pt-6 flex justify-between items-center">
-                <div className='flex items-center space-x-2'>
-                    <div className='w-10 h-10 bg-gradient-to-br from-lime-400 to-emerald-400 rounded-xl flex items-center justify-center shadow-lg shadow-lime-500/20'>
-                        <svg className="w-6 h-6 text-black" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+            {/* Content */}
+            <div className="relative z-20 h-full flex flex-col justify-between p-6">
+                {/* Header */}
+                <div className="pt-8 animate-fade-in-down">
+                    <div className="flex items-center space-x-3 mb-2">
+                        <div className="w-12 h-12 bg-linear-to-br from-lime-400 to-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-lime-500/30">
+                            <svg className="w-7 h-7 text-black" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-extrabold tracking-tight text-white">RAPID RIDE</h1>
+                            <p className="text-gray-400 text-sm tracking-wide">Go anywhere, anytime</p>
+                        </div>
                     </div>
-                    <span className="text-white font-bold text-xl tracking-wider">RAPID RIDE</span>
-                </div>
-                <Link to="/user/login" className="px-5 py-2 glass rounded-full text-white text-sm font-medium hover:bg-white/10 transition-all border border-white/10">
-                    Sign In
-                </Link>
-            </div>
-
-            {/* Bottom Panel */}
-            <div className="relative z-20 mt-auto px-6 pb-10 w-full max-w-md mx-auto sm:max-w-xl lg:max-w-4xl">
-                <div className="mb-6 space-y-2 text-center lg:text-left">
-                    <h1 className="text-4xl sm:text-5xl font-bold text-white leading-tight">
-                        Your ride is <br />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-emerald-500">
-                            just a tap away.
-                        </span>
-                    </h1>
-                    <p className="text-gray-400">Fast, secure, and futuristic travel.</p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                    <button
-                        onClick={() => navigate('/user/login')}
-                        className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-lime-400 to-emerald-500 p-4 transition-all hover:scale-[1.02] shadow-xl shadow-lime-500/20">
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div className="text-left">
-                                <p className="text-xs font-bold text-black opacity-60 uppercase tracking-widest">Get Started</p>
-                                <p className="text-lg font-bold text-black">Find a Ride</p>
-                            </div>
-                            <div className="h-10 w-10 rounded-full bg-black/10 flex items-center justify-center group-hover:bg-black/20 transition-colors">
-                                <svg className="w-6 h-6 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                </svg>
-                            </div>
+                {/* Stats Row */}
+                <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2">
+                    <div className="flex justify-center space-x-6 animate-fade-in">
+                        <div className="glass rounded-2xl px-5 py-4 text-center">
+                            <p className="text-2xl font-bold text-lime-400">{nearbyDrivers.length}+</p>
+                            <p className="text-xs text-gray-400 mt-1">Drivers nearby</p>
                         </div>
-                    </button>
-
-
-                    <button
-                        onClick={() => navigate('/driver/signup')}
-                        className="group relative w-full overflow-hidden rounded-2xl bg-gray-800 border border-gray-700 p-4 transition-all hover:scale-[1.02] hover:border-lime-500/50">
-                        <div className="relative z-10 flex items-center justify-between">
-                            <div className="text-left">
-                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Partner</p>
-                                <p className="text-lg font-bold text-white">Become a Driver</p>
-                            </div>
-                            <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                            </div>
+                        <div className="glass rounded-2xl px-5 py-4 text-center">
+                            <p className="text-2xl font-bold text-blue-400">2 min</p>
+                            <p className="text-xs text-gray-400 mt-1">Avg. pickup</p>
                         </div>
-                    </button>
+                        <div className="glass rounded-2xl px-5 py-4 text-center">
+                            <p className="text-2xl font-bold text-purple-400">4.9⭐</p>
+                            <p className="text-xs text-gray-400 mt-1">Average rating</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom CTA */}
+                <div className="pb-6 animate-fade-in-up">
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => navigate('/user/login')}
+                            className="w-full bg-lime-500 text-black font-bold py-4 rounded-2xl text-lg hover:bg-lime-400 transition-all active:scale-[0.98] shadow-lg shadow-lime-500/20"
+                        >
+                            Get Started
+                        </button>
+
+                        <div className="flex space-x-3">
+                            <button
+                                onClick={() => navigate('/user/login')}
+                                className="flex-1 glass py-3 rounded-2xl text-center font-medium text-gray-300 hover:bg-white/10 transition-all"
+                            >
+                                Sign In
+                            </button>
+                            <button
+                                onClick={() => navigate('/driver/login')}
+                                className="flex-1 glass py-3 rounded-2xl text-center font-medium text-lime-400 hover:bg-lime-500/10 transition-all"
+                            >
+                                Drive with us →
+                            </button>
+                        </div>
+                    </div>
+
+                    <p className="text-center text-gray-600 text-xs mt-4">
+                        By continuing, you agree to our Terms & Privacy Policy
+                    </p>
                 </div>
             </div>
-
-            <style jsx>{`
-                .glass {
-                    background: rgba(255, 255, 255, 0.05);
-                    backdrop-filter: blur(10px);
-                    -webkit-backdrop-filter: blur(10px);
-                }
-            `}</style>
         </div>
-    )
-}
+    );
+};
 
-export default Home
+export default Home;
